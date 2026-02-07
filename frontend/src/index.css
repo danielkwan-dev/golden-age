@@ -1,23 +1,58 @@
-:root {
-  color-scheme: light;
-  font-family: "Fraunces", "Georgia", serif;
-  background: #f7f3ea;
-  color: #1c1c1c;
+@import "tailwindcss";
+
+@theme {
+  --color-gold: #D4AF37;
+  --color-gold-light: #F5E6A3;
+  --color-gold-dark: #B8960C;
+  --color-gold-muted: #C9A84C;
+  --color-black: #0A0A0A;
+  --color-black-soft: #1A1A1A;
+  --color-charcoal: #2A2A2A;
+  --color-white: #FFFFFF;
+  --font-sans: "Inter", sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+html {
+  scroll-behavior: smooth;
 }
 
 body {
+  margin: 0;
   min-height: 100vh;
+  background-color: #0A0A0A;
+  color: #FFFFFF;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
+/* Gold glow — subtle gold box-shadow */
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.3), 0 0 40px rgba(212, 175, 55, 0.1);
+}
+
+/* Gold shimmer — CSS animation for loading states */
+.gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    #B8960C 0%,
+    #F5E6A3 50%,
+    #B8960C 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Gold gradient — linear gradient from gold-dark to gold-light */
+.gold-gradient {
+  background: linear-gradient(135deg, #B8960C, #F5E6A3);
 }
