@@ -58,6 +58,29 @@ export default function ActiveSession({
         )}
       </div>
 
+      {/* Top-left: Repair steps list */}
+      {session.repairSteps.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, x: -12 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="absolute top-[max(4rem,calc(env(safe-area-inset-top)+3rem))] left-3 z-20 pointer-events-none max-w-[55%]"
+        >
+          <div className="glass border border-gold/20 rounded-xl px-3 py-2.5">
+            <p className="text-gold text-[10px] font-semibold uppercase tracking-wider mb-1.5">
+              Repair Steps
+            </p>
+            <ol className="space-y-1">
+              {session.repairSteps.map((step, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-relaxed">
+                  <span className="text-gold/70 font-semibold shrink-0">{i + 1}.</span>
+                  <span className="text-white/80">{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </motion.div>
+      )}
+
       {/* Center: Live speech bubble + status */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         {mic.liveTranscript && (

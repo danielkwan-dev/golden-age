@@ -14,6 +14,7 @@ export default function useRepairSession() {
   const [scanning, setScanning] = useState(false);
   const [diagnosis, setDiagnosis] = useState(null);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
+  const [repairSteps, setRepairSteps] = useState([]);
 
   const cancelRef = useRef(false);
   const timeoutRef = useRef(null);
@@ -32,6 +33,24 @@ export default function useRepairSession() {
       accumulated += (i === 0 ? "" : " ") + words[i];
       setStreamingText(accumulated);
       await sleep(40 + Math.random() * 25);
+    }
+  };
+
+  /**
+   * Extract numbered steps from AI text (e.g. "1. Do this", "2. Do that").
+   * Replaces the step list each time the AI gives new steps.
+   */
+  const extractSteps = (text) => {
+    const lines = text.split("\n");
+    const steps = [];
+    for (const line of lines) {
+      const match = line.match(/^\s*(\d+)[.)]\s+(.+)/);
+      if (match) {
+        steps.push(match[2].trim());
+      }
+    }
+    if (steps.length > 0) {
+      setRepairSteps(steps);
     }
   };
 
@@ -75,6 +94,7 @@ export default function useRepairSession() {
         ...prev,
         { speaker: "ai", text: aiText, timestamp: new Date() },
       ]);
+      extractSteps(aiText);
       setStreamingText("");
 
       if (audioBytes) {
@@ -187,6 +207,7 @@ export default function useRepairSession() {
     setAiSpeaking(false);
     setScanning(false);
     setActiveAnnotations([]);
+    setRepairSteps([]);
     stopAudio();
     cancelRef.current = false;
     setPhase("active");
@@ -214,6 +235,7 @@ export default function useRepairSession() {
     setAiSpeaking(false);
     setScanning(false);
     setActiveAnnotations([]);
+    setRepairSteps([]);
   }, []);
 
   return {
@@ -223,6 +245,7 @@ export default function useRepairSession() {
     streamingText,
     scanning,
     diagnosis,
+    repairSteps,
     activeAnnotations,
     sessionStatus: phase === "complete" ? "complete" : "active",
     totalSteps: diagnosis?.steps?.length || 0,
