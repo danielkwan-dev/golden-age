@@ -10,6 +10,7 @@ Thumbs.db
 node_modules/
 venv/
 __pycache__/
+*.pyc
 
 dist/
 build/
@@ -32,3 +33,9 @@ ml/runs/
 *.onnx
 *.zip
 nul
+
+# Backend
+midass.db
+models/runs/
+models/midas_yolo.pt
+.vercel/

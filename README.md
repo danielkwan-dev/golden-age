@@ -2,7 +2,7 @@
 
 # Authors: Siddharth Tiwari, Daniel Kwan, Ryan Li and Diego Gonzalez
 
-# 🏆 MIDAS
+# MIDAS
 
 **Touch Broken Tech. Restore to Gold.**
 
@@ -10,7 +10,7 @@ MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broke
 
 ---
 
-## ✨ Inspiration
+## Inspiration
 
 In the Heathkit era, people built and repaired their own technology. Today, most devices are sealed, opaque, and disposable—fueling massive e-waste and learned helplessness.
 
@@ -18,101 +18,91 @@ In the Heathkit era, people built and repaired their own technology. Today, most
 
 ---
 
-## 🔧 What It Does (MVP)
+## What It Does (MVP)
 
 MIDAS v0 demonstrates an end-to-end repair experience for a **smartphone screen connector issue**:
 
-1. 📷 **Scan** a broken phone using the camera
-2. 🧠 **Recognize** the device and key components
-3. 🚨 **Diagnose** a likely fault (e.g. loose display connector)
-4. 🧩 **Repair** with AR-guided 3D step-by-step instructions
-5. ✨ **Verify** the fix and “Restore to Gold”
+1. **Scan** a broken phone using the camera
+2. **Recognize** the device and key components
+3. **Diagnose** a likely fault (e.g. loose display connector)
+4. **Repair** with AR-guided step-by-step instructions
+5. **Verify** the fix and "Restore to Gold"
 
 ---
 
-## 🧠 How It Works
+## Tech Stack
 
-* **Computer Vision** detects phone components in real time
-* **Rule-based diagnosis** determines the most likely issue
-* **AR overlays** align a 3D phone model to the real device
-* **Animated repair steps** guide the user visually
-* **Repair confirmation** contributes to a growing repair knowledge base
-
----
-
-## 🛠️ Tech Stack
-
-* **Unity (URP)**
-* **AR Foundation + ARKit** for augmented reality
-* **YOLO (or mocked detection)** for component recognition
-* **C#** for application logic
-* **3D phone model + animations** for repair guidance
-
-*(For hackathon stability, some AI components are partially simulated.)*
+- **Frontend**: React + Vite (mobile web app)
+- **Backend**: FastAPI (Python 3.10+)
+- **AI/CV**: YOLOv11 (Ultralytics) + OpenCV
+- **LLM**: OpenAI GPT for dynamic repair instructions
+- **Speech**: Whisper / Web Speech API for voice context
+- **Database**: Supabase (PostgreSQL via SQLAlchemy)
 
 ---
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-* macOS
-* Unity Hub
-* Xcode
-* iPhone with ARKit support
-
-### Setup
-
-```bash
-git clone https://github.com/your-team/midas.git
-cd midas
+## Project Structure
+```text
+golden-age/
+├── frontend/               # React + Vite web app
+│   ├── src/
+│   │   ├── components/     # UI components (CameraFeed, VoiceOrb, etc.)
+│   │   ├── hooks/          # useCamera, useMicrophone, useRepairSession
+│   │   └── data/           # Mock data for development
+│   └── package.json
+├── ml/                     # Machine learning pipeline
+│   ├── configs/            # YAML config + loader
+│   ├── data/               # Dataset merge scripts
+│   ├── utils/              # Speech context, overlay, repair KB, LLM advisor
+│   ├── train.py            # YOLOv11 training
+│   ├── inference.py        # Local video inference demo
+│   └── server.py           # FastAPI model server
+├── core/                   # Backend diagnosis + repair logic
+├── main.py                 # FastAPI entry point
+└── requirements.txt        # Python dependencies
 ```
 
-1. Open the project in **Unity Hub**
-2. Install:
+---
 
-   * AR Foundation
-   * ARKit XR Plugin
-3. Open the `MainScene`
-4. Connect an iPhone and **Build & Run**
+## Getting Started
+
+### Backend
+```bash
+pip install -r requirements.txt
+cd ml
+python data/merge_datasets.py
+python train.py
+python server.py
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
-## 🧪 Demo Flow
+## API Endpoints
 
-1. Launch MIDAS on your phone
-2. Tap **Scan Device**
-3. Watch components get identified
-4. View highlighted fault
-5. Follow AR repair steps
-6. See the **“Restored to Gold ✨”** success screen
-
----
-
-## 🏅 Why MIDAS Wins
-
-* 🧠 Combines AI + AR in a practical, human-centered way
-* ♻️ Tackles e-waste and right-to-repair
-* 👀 Extremely visual and demo-friendly
-* 📈 Scales to cars, appliances, industrial hardware
-* 🛠️ Encourages learning, not replacement
+| Method | Endpoint   | Description |
+|--------|-----------|-------------|
+| POST   | /detect   | Send image, get damage detections |
+| POST   | /repair   | Get LLM-generated repair instructions |
+| POST   | /context  | Update speech context with transcript |
+| GET    | /health   | Server health check |
+| GET    | /classes  | List all fault classes |
 
 ---
 
-## 🔮 Future Work
+## Future Work
 
-* Multi-device support (laptops, cars, appliances)
-* Crowdsourced repair success data
-* Voice-guided repair steps
-* Beginner vs expert modes
-* Global map of devices saved from landfill
-
----
-
-## 👥 Team
-
-Built with ❤️ during a hackathon by a team that believes broken tech deserves a second life.
+- Multi-device support (laptops, cars, appliances)
+- Crowdsourced repair success data
+- Voice-guided repair steps
+- Beginner vs expert modes
 
 ---
 
-
+Built with care during QHacks 2026 by a team that believes broken tech deserves a second life.
