@@ -1,12 +1,12 @@
-# MIDAS
+# Midas - QHacks 2026
 
-QHacks 2026
+Theme: The Golden Age
+
+Authors: Siddharth Tiwari, Daniel Kwan, Ryan Li, and Diego Gonzalez.
 
 **Touch Broken Tech. Restore to Gold.**
 
-MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. Point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step voice-guided repair instructions -- bringing back the Golden Age of hands-on, self-reliant repair using modern AI.
-
-Built at QHacks 2026 by **Siddharth Tiwari, Daniel Kwan, Ryan Li, and Diego Gonzalez**.
+MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. Point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas is bringing back the Golden Age of hands-on, self-reliant repair using modern AI.
 
 ---
 
@@ -33,7 +33,6 @@ Users interact via **hold-to-talk** (Whisper STT), **text input**, or the **scan
 | **Vision AI** | GPT-4o Vision (damage analysis + repair instructions) |
 | **Speech-to-Text** | OpenAI Whisper API |
 | **Text-to-Speech** | OpenAI TTS (`tts-1`, `nova` voice) |
-| **Font** | JetBrains Mono |
 
 ---
 
@@ -199,10 +198,3 @@ python ml/server.py
 
 The server auto-detects `frontend/dist/` and serves the SPA + API from port 8000.
 
----
-
-## Inspiration
-
-In the Heathkit era, people built and repaired their own technology. Today, most devices are sealed, opaque, and disposable -- fueling massive e-waste and learned helplessness.
-
-**MIDAS revives that lost self-reliance** by making repairs accessible, visual, and confidence-building through AI and augmented reality.
