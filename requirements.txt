@@ -12,7 +12,8 @@ httpx>=0.27.0
 numpy>=1.26.0
 pillow>=10.4.0
 
-# ML model dependencies (YOLOv11 + OpenCV + Whisper)
+# ML model dependencies (YOLOv11 + OpenCV + Whisper + LLM)
+openai>=1.0.0
 openai-whisper>=20231117
 sounddevice>=0.4.6
 pyyaml>=6.0
