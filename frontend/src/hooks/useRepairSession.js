@@ -20,6 +20,7 @@ export default function useRepairSession() {
   const cancelRef = useRef(false);
   const timeoutRef = useRef(null);
   const audioRef = useRef(null);
+  const prevAudioUrlRef = useRef(null);
   const videoElRef = useRef(null);
 
   const sleep = (ms) =>
@@ -66,10 +67,23 @@ export default function useRepairSession() {
     return msgs;
   };
 
+  /** Get or create a persistent Audio element (stays "unlocked" on mobile). */
+  const getAudioEl = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    return audioRef.current;
+  };
+
   const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current = null;
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
+    }
+    if (prevAudioUrlRef.current) {
+      URL.revokeObjectURL(prevAudioUrlRef.current);
+      prevAudioUrlRef.current = null;
     }
   };
 
@@ -102,17 +116,18 @@ export default function useRepairSession() {
         try {
           const mp3Blob = new Blob([audioBytes], { type: "audio/mpeg" });
           const audioUrl = URL.createObjectURL(mp3Blob);
-          const audio = new Audio(audioUrl);
-          audioRef.current = audio;
+          // Revoke previous blob URL if any
+          if (prevAudioUrlRef.current) {
+            URL.revokeObjectURL(prevAudioUrlRef.current);
+          }
+          prevAudioUrlRef.current = audioUrl;
+          const audio = getAudioEl();
+          audio.src = audioUrl;
           audio.onended = () => {
             setAiSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-            audioRef.current = null;
           };
           audio.play().catch(() => {
             setAiSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-            audioRef.current = null;
           });
         } catch {
           setAiSpeaking(false);
@@ -297,6 +312,21 @@ export default function useRepairSession() {
     [scanning, transcript]
   );
 
+  /**
+   * Call during a user gesture (e.g. mic button press) to ensure the
+   * Audio element is "unlocked" on mobile for later programmatic playback.
+   */
+  const unlockAudio = useCallback(() => {
+    const audio = getAudioEl();
+    // Play + immediately pause a silent moment to unlock the element
+    audio.muted = true;
+    audio.play().then(() => {
+      audio.pause();
+      audio.muted = false;
+      audio.currentTime = 0;
+    }).catch(() => {});
+  }, []);
+
   const grantPermissions = useCallback(() => setPhase("ready"), []);
 
   const startSession = useCallback(() => {
@@ -358,5 +388,6 @@ export default function useRepairSession() {
     scanPhoto,
     completeStep,
     sendText,
+    unlockAudio,
   };
 }

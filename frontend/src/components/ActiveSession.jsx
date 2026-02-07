@@ -14,6 +14,7 @@ export default function ActiveSession({
   const handlePressStart = (e) => {
     e.preventDefault();
     if (session.scanning || session.aiSpeaking) return;
+    session.unlockAudio();
     mic.startListening();
   };
 
