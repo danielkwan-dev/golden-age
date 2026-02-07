@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .DS_Store
 Thumbs.db
 
@@ -22,3 +23,14 @@ out/
 
 *.tmp
 *.temp
+=======
+venv/
+__pycache__/
+*.pyc
+.env
+midass.db
+models/runs/
+models/midas_yolo.pt
+.vercel/
+*.log
+>>>>>>> a886157 (Initial commit: Golden Age of Repair Backend)

@@ -1,0 +1,30 @@
+# --- THE BLUEPRINT OF VISION ---
+# Defining the categories of suffering for the Oracle.
+
+# Train/Val paths (Relative to this file)
+path: ./datasets  # dataset root dir
+train: images/train  # train images (relative to 'path')
+val: images/val      # val images (relative to 'path')
+test:  # test images (optional)
+
+# Classes
+names:
+  0: burnt_resistor
+  1: cracked_screen
+  2: corroded_contact
+  3: loose_belt
+  4: missing_component
+  5: liquid_damage
+  6: cable_fray
+  7: blown_capacitor
+  8: alternator_fault
+  9: gear_wear
+
+# Note: Your directory structure should look like this:
+# datasets/
+# ├── images/
+# │   ├── train/ (your training jpgs)
+# │   └── val/   (your validation jpgs)
+# └── labels/
+#     ├── train/ (your YOLO format .txt files)
+#     └── val/   (your YOLO format .txt files)
