@@ -35,9 +35,6 @@ export default function useRepairSession() {
     }
   };
 
-  /**
-   * Build OpenAI-style messages array from transcript history.
-   */
   const buildMessages = (history, newUserText) => {
     const msgs = history.map((msg) => ({
       role: msg.speaker === "user" ? "user" : "assistant",
@@ -49,7 +46,6 @@ export default function useRepairSession() {
     return msgs;
   };
 
-  /** Stop any currently playing TTS audio. */
   const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -58,9 +54,52 @@ export default function useRepairSession() {
   };
 
   /**
-   * Capture a frame + send to GPT-4o with full conversation history.
-   * videoEl: the <video> DOM element
-   * audioBlob: recorded audio Blob from MediaRecorder (sent to Whisper)
+   * Shared core: capture frame, send to chat, stream response, play TTS.
+   * Called by both scan() and scanPhoto().
+   */
+  const sendToChat = async (videoEl, userText) => {
+    setStreamingText("Scanning device...");
+    const blob = await captureFrame(videoEl);
+    const messages = buildMessages(transcript, userText);
+    const aiText = await chatWithMidas(messages, blob);
+
+    // Stream text + fetch TTS in parallel
+    setStreamingText("");
+    const [, audioBytes] = await Promise.all([
+      streamWords(aiText),
+      speakText(aiText).catch(() => null),
+    ]);
+
+    if (!cancelRef.current) {
+      setTranscript((prev) => [
+        ...prev,
+        { speaker: "ai", text: aiText, timestamp: new Date() },
+      ]);
+      setStreamingText("");
+
+      if (audioBytes) {
+        try {
+          const mp3Blob = new Blob([audioBytes], { type: "audio/mpeg" });
+          const audioUrl = URL.createObjectURL(mp3Blob);
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+          audio.onended = () => {
+            setAiSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            audioRef.current = null;
+          };
+          audio.play();
+        } catch {
+          setAiSpeaking(false);
+        }
+      } else {
+        setAiSpeaking(false);
+      }
+    }
+  };
+
+  /**
+   * Hold-to-talk flow: transcribe audio via Whisper, then send to chat.
    */
   const scan = useCallback(
     async (videoEl, audioBlob = null) => {
@@ -70,7 +109,7 @@ export default function useRepairSession() {
       setAiSpeaking(true);
       cancelRef.current = false;
 
-      // Step 1: Transcribe audio via Whisper
+      // Transcribe audio via Whisper
       let spokenText = "";
       if (audioBlob && audioBlob.size > 0) {
         try {
@@ -81,7 +120,6 @@ export default function useRepairSession() {
         }
       }
 
-      // Add user's spoken text to transcript
       if (spokenText.trim()) {
         setTranscript((prev) => [
           ...prev,
@@ -90,50 +128,39 @@ export default function useRepairSession() {
       }
 
       try {
-        setStreamingText("Scanning device...");
-        const blob = await captureFrame(videoEl);
-
-        // Build proper message history for the LLM
-        const messages = buildMessages(transcript, spokenText);
-
-        // Send to /chat endpoint with image + full conversation history
-        const aiText = await chatWithMidas(messages, blob);
-
-        // Stream the response word by word + request TTS in parallel
+        await sendToChat(videoEl, spokenText);
+      } catch {
         setStreamingText("");
-        const [, audioBytes] = await Promise.all([
-          streamWords(aiText),
-          speakText(aiText).catch(() => null),
+        setTranscript((prev) => [
+          ...prev,
+          {
+            speaker: "ai",
+            text: "I couldn't analyze the image. Make sure the server is running and try again.",
+            timestamp: new Date(),
+          },
         ]);
+        setAiSpeaking(false);
+      } finally {
+        setScanning(false);
+      }
+    },
+    [scanning, transcript]
+  );
 
-        if (!cancelRef.current) {
-          setTranscript((prev) => [
-            ...prev,
-            { speaker: "ai", text: aiText, timestamp: new Date() },
-          ]);
-          setStreamingText("");
+  /**
+   * Scan button flow: capture frame and send to chat without voice input.
+   */
+  const scanPhoto = useCallback(
+    async (videoEl) => {
+      if (scanning || !videoEl) return;
 
-          // Play TTS audio
-          if (audioBytes) {
-            try {
-              const mp3Blob = new Blob([audioBytes], { type: "audio/mpeg" });
-              const audioUrl = URL.createObjectURL(mp3Blob);
-              const audio = new Audio(audioUrl);
-              audioRef.current = audio;
-              audio.onended = () => {
-                setAiSpeaking(false);
-                URL.revokeObjectURL(audioUrl);
-                audioRef.current = null;
-              };
-              audio.play();
-            } catch {
-              setAiSpeaking(false);
-            }
-          } else {
-            setAiSpeaking(false);
-          }
-        }
-      } catch (err) {
+      setScanning(true);
+      setAiSpeaking(true);
+      cancelRef.current = false;
+
+      try {
+        await sendToChat(videoEl, "");
+      } catch {
         setStreamingText("");
         setTranscript((prev) => [
           ...prev,
@@ -206,5 +233,6 @@ export default function useRepairSession() {
     completeSession,
     resetSession,
     scan,
+    scanPhoto,
   };
 }

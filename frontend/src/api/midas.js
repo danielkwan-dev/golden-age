@@ -12,15 +12,24 @@ export async function captureFrame(videoEl) {
 }
 
 /**
- * Send a frame to the OpenCV-only preview endpoint (free, no GPT-4o).
- * Returns an object URL for the enhanced JPEG.
+ * Send a frame to the OpenCV preview + detection endpoint (free, no GPT-4o).
+ * Returns { imageUrl, detections } where detections is an array of AR markers.
  */
 export async function fetchPreview(imageBlob) {
   const form = new FormData();
   form.append("image", imageBlob, "frame.jpg");
   const res = await fetch(`${API_BASE}/preview`, { method: "POST", body: form });
   if (!res.ok) throw new Error("Preview failed");
-  return URL.createObjectURL(await res.blob());
+  const data = await res.json();
+  // Convert base64 image to object URL
+  const binary = atob(data.image);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const imgBlob = new Blob([bytes], { type: "image/jpeg" });
+  return {
+    imageUrl: URL.createObjectURL(imgBlob),
+    detections: data.detections || [],
+  };
 }
 
 /**
