@@ -3,48 +3,24 @@
 # Device categories the model can detect
 device_types:
   - smartphone
-  - tablet
-  - laptop
-  - circuit_board
-  - desktop_component
 
-# Fault classes the model detects (these become YOLO class labels)
+# Fault classes (YOLO class labels, must match merged data.yaml order)
 fault_classes:
-  # Smartphone / Tablet
-  - cracked_screen
-  - loose_display_connector
-  - damaged_charging_port
-  - battery_swelling
-  - water_damage_corrosion
-  - broken_speaker_grille
-  - camera_lens_crack
-  - bent_frame
-  # Laptop
-  - broken_hinge
-  - damaged_keyboard
-  - swollen_battery
-  - loose_ram_module
-  - damaged_fan
-  - broken_trackpad
-  # Circuit board
-  - burnt_component
-  - cold_solder_joint
-  - blown_capacitor
-  - corroded_trace
-  - cracked_pcb
-  - missing_component
-  # Desktop
-  - bent_cpu_pin
-  - damaged_pcie_slot
-  - bulging_capacitor
-  - burnt_vrm
-  - broken_dimm_slot
+  - phone              # 0: intact phone detected
+  - phone_damage       # 1: general phone damage
+  - body_lecet         # 2: body scratch
+  - body_retak         # 3: body crack
+  - lcd_garis          # 4: LCD line/streak
+  - lcd_retak          # 5: LCD crack
+  - lcd_rusak          # 6: LCD broken/dead
+  - smartphone         # 7: smartphone device detection
 
 # YOLOv11 model
 model:
   variant: "yolo11n"            # yolo11n | yolo11s | yolo11m | yolo11l | yolo11x
   task: "detect"                # detect | segment
   image_size: 640
+  num_classes: 8
   pretrained: true
 
 # Training
@@ -80,9 +56,9 @@ inference:
 
 # Data paths (relative to ml/)
 data:
-  dataset_root: "data"
+  dataset_root: "data/merged"
   images_dir: "images"
   labels_dir: "labels"
   audio_dir: "audio_clips"
   checkpoint_dir: "runs"
-  dataset_yaml: "dataset.yaml"
+  dataset_yaml: "data/merged/data.yaml"
