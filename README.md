@@ -6,7 +6,7 @@ Authors: Daniel Kwan, Diego Gonzalez, Ryan Li, Siddharth Tiwari
 
 **Touch Broken Tech. Restore to Gold.**
 
-MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. Point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas is bringing back the Golden Age of hands-on, self-reliant repair using modern AI.
+MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. **Optimized for mobile**, simply point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas is bringing back the Golden Age of hands-on repair using modern AI.
 
 ---
 
@@ -68,7 +68,7 @@ midas/
 │           ├── useMicrophone.js     # MediaRecorder for hold-to-talk audio capture
 │           └── useRepairSession.js  # Session state, chat, TTS, step tracking
 │
-├── ml/                              # Python backend (FastAPI + AI/CV)
+├── backend/                         # Python backend (FastAPI + AI/CV)
 │   ├── server.py                    # FastAPI server -- all endpoints
 │   ├── __init__.py
 │   └── utils/
@@ -114,7 +114,7 @@ Two modes of operation:
 - **`analyze_image()`** -- Single-turn structured JSON analysis (device, damage, severity, tools, steps)
 - **`chat()`** -- Multi-turn conversational repair guidance with system prompt enforcing:
   - Max 2 sentences per response
-  - ONE numbered step at a time (`Step N: [action]`)
+  - 1 numbered step at a time (`Step n: [action]`)
   - References to specific visible parts in the image
   - Safety warnings inline
   - Plain spoken English (read aloud via TTS)
