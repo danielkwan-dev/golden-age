@@ -30,8 +30,8 @@ training:
   learning_rate: 0.01
   optimizer: "AdamW"
   patience: 20                  # early stopping patience
-  device: "0"                   # GPU id, or "cpu"
-  workers: 8
+  device: "cpu"                  # GPU id (e.g. "0"), or "cpu"
+  workers: 4
   augment: true
   val_split: 0.15
   seed: 42
@@ -49,7 +49,7 @@ inference:
   iou_threshold: 0.45
   max_detections: 10
   frame_sample_interval: 5     # analyze every Nth frame
-  device: "0"
+  device: "cpu"
   show_labels: true
   show_confidence: true
   overlay_alpha: 0.4           # transparency for overlay drawings
