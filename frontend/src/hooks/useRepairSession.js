@@ -14,11 +14,13 @@ export default function useRepairSession() {
   const [scanning, setScanning] = useState(false);
   const [diagnosis, setDiagnosis] = useState(null);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
+  // Each entry: { text: string, completed: boolean }
   const [repairSteps, setRepairSteps] = useState([]);
 
   const cancelRef = useRef(false);
   const timeoutRef = useRef(null);
   const audioRef = useRef(null);
+  const videoElRef = useRef(null);
 
   const sleep = (ms) =>
     new Promise((resolve) => {
@@ -37,23 +39,19 @@ export default function useRepairSession() {
   };
 
   /**
-   * Extract numbered steps from AI text (e.g. "1. Do this", "2. Do that").
-   * Replaces the step list each time the AI gives new steps.
+   * Extract a single step from AI text (e.g. "Step 3: Do this").
+   * Appends it to the accumulated step list as the new current step.
    */
-  const extractSteps = (text) => {
+  const extractStep = (text) => {
     const lines = text.split("\n");
-    const steps = [];
     for (const line of lines) {
-      // Match: "1. ...", "1) ...", "Step 1: ...", "Step 1. ...", "Step 1 - ..."
+      // Match: "Step N: ...", "N. ...", "N) ...", "N - ..."
       const match = line.match(/^\s*(?:step\s+)?\d+\s*[.):\-]\s*(.+)/i);
       if (match) {
-        // Strip markdown bold/italic markers (** and *)
         const clean = match[1].trim().replace(/\*{1,2}/g, "");
-        steps.push(clean);
+        setRepairSteps((prev) => [...prev, { text: clean, completed: false }]);
+        return;
       }
-    }
-    if (steps.length > 0) {
-      setRepairSteps(steps);
     }
   };
 
@@ -77,7 +75,7 @@ export default function useRepairSession() {
 
   /**
    * Shared core: capture frame, send to chat, stream response, play TTS.
-   * Called by both scan() and scanPhoto().
+   * Called by scan(), scanPhoto(), and completeStep().
    */
   const sendToChat = async (videoEl, userText, isFrontFacing = false) => {
     setStreamingText("Scanning device...");
@@ -97,7 +95,7 @@ export default function useRepairSession() {
         ...prev,
         { speaker: "ai", text: aiText, timestamp: new Date() },
       ]);
-      extractSteps(aiText);
+      extractStep(aiText);
       setStreamingText("");
 
       if (audioBytes) {
@@ -128,6 +126,7 @@ export default function useRepairSession() {
     async (videoEl, audioBlob = null, isFrontFacing = false) => {
       if (scanning || !videoEl) return;
 
+      videoElRef.current = videoEl;
       setScanning(true);
       setAiSpeaking(true);
       cancelRef.current = false;
@@ -177,6 +176,7 @@ export default function useRepairSession() {
     async (videoEl, isFrontFacing = false) => {
       if (scanning || !videoEl) return;
 
+      videoElRef.current = videoEl;
       setScanning(true);
       setAiSpeaking(true);
       cancelRef.current = false;
@@ -190,6 +190,98 @@ export default function useRepairSession() {
           {
             speaker: "ai",
             text: "I couldn't analyze the image. Make sure the server is running and try again.",
+            timestamp: new Date(),
+          },
+        ]);
+        setAiSpeaking(false);
+      } finally {
+        setScanning(false);
+      }
+    },
+    [scanning, transcript]
+  );
+
+  /**
+   * Mark current step as completed and ask LLM for the next step.
+   */
+  const completeStep = useCallback(
+    async (videoEl) => {
+      if (scanning) return;
+
+      const vid = videoEl || videoElRef.current;
+      if (!vid) return;
+
+      // Mark the last incomplete step as completed
+      setRepairSteps((prev) => {
+        const updated = [...prev];
+        for (let i = updated.length - 1; i >= 0; i--) {
+          if (!updated[i].completed) {
+            updated[i] = { ...updated[i], completed: true };
+            break;
+          }
+        }
+        return updated;
+      });
+
+      // Send confirmation to LLM to get next step
+      const confirmText = "I completed that step. What's the next step?";
+      setTranscript((prev) => [
+        ...prev,
+        { speaker: "user", text: confirmText, timestamp: new Date() },
+      ]);
+
+      setScanning(true);
+      setAiSpeaking(true);
+      cancelRef.current = false;
+
+      try {
+        await sendToChat(vid, confirmText);
+      } catch {
+        setStreamingText("");
+        setTranscript((prev) => [
+          ...prev,
+          {
+            speaker: "ai",
+            text: "I couldn't get the next step. Please try again.",
+            timestamp: new Date(),
+          },
+        ]);
+        setAiSpeaking(false);
+      } finally {
+        setScanning(false);
+      }
+    },
+    [scanning, transcript]
+  );
+
+  /**
+   * Send a typed text message to the LLM (with current camera frame).
+   */
+  const sendText = useCallback(
+    async (videoEl, text) => {
+      if (scanning || !text.trim()) return;
+
+      const vid = videoEl || videoElRef.current;
+      if (!vid) return;
+
+      setTranscript((prev) => [
+        ...prev,
+        { speaker: "user", text: text.trim(), timestamp: new Date() },
+      ]);
+
+      setScanning(true);
+      setAiSpeaking(true);
+      cancelRef.current = false;
+
+      try {
+        await sendToChat(vid, text.trim());
+      } catch {
+        setStreamingText("");
+        setTranscript((prev) => [
+          ...prev,
+          {
+            speaker: "ai",
+            text: "I couldn't process that. Make sure the server is running and try again.",
             timestamp: new Date(),
           },
         ]);
@@ -260,5 +352,7 @@ export default function useRepairSession() {
     resetSession,
     scan,
     scanPhoto,
+    completeStep,
+    sendText,
   };
 }
