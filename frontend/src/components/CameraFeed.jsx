@@ -1,4 +1,4 @@
-export default function CameraFeed({ videoRef, isFrontFacing }) {
+export default function CameraFeed({ videoRef }) {
   return (
     <div className="absolute inset-0 z-0 bg-black">
       <video
@@ -9,7 +9,7 @@ export default function CameraFeed({ videoRef, isFrontFacing }) {
         className="w-full h-full object-cover"
         style={{
           willChange: "transform",
-          ...(isFrontFacing ? { transform: "scaleX(-1)" } : {}),
+          transform: "scaleX(-1)",
         }}
       />
     </div>
