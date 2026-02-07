@@ -75,7 +75,7 @@ function App() {
             if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
             previewUrlRef.current = imageUrl;
             setPreviewUrl(imageUrl);
-            setDetections(newDetections);
+            setDetections(newDetections.slice(0, 3));
           } catch {
             // Preview server not running — wait before retrying
             await new Promise((r) => setTimeout(r, 2000));

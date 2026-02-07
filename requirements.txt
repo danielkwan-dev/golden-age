@@ -11,7 +11,8 @@ httpx>=0.27.0
 numpy>=1.26.0
 pillow>=10.4.0
 
-# OpenCV + GPT-4o Vision
+# OpenCV + GPT-4o Vision + YOLO
 openai>=1.0.0
 pyyaml>=6.0
 python-dotenv>=1.0.0
+ultralytics>=8.0.0

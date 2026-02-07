@@ -38,6 +38,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
+from ultralytics import YOLO
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.vision_advisor import VisionAdvisor
 
@@ -87,16 +89,21 @@ app.add_middleware(
 
 # Globals
 vision_advisor: VisionAdvisor = None
+yolo_model: YOLO = None
 
 
 def init_server():
-    """Initialize the vision advisor."""
-    global vision_advisor
+    """Initialize the vision advisor and YOLO model."""
+    global vision_advisor, yolo_model
+
+    # Load YOLOv8 nano model (auto-downloads ~6MB on first run)
+    yolo_model = YOLO("yolov8n.pt")
+    print("YOLOv8n model loaded")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if api_key:
         vision_advisor = VisionAdvisor()
-        print("MIDAS server ready (GPT-4o Vision)")
+        print("MIDAS server ready (GPT-4o Vision + YOLOv8)")
     else:
         print("ERROR: OPENAI_API_KEY not set — server cannot analyze images")
 
@@ -144,51 +151,44 @@ def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool, any]:
     return jpeg_bytes.tobytes(), w, h, True, frame
 
 
-def detect_regions(frame, frame_w: int, frame_h: int, max_detections: int = 5) -> list:
+def detect_objects(frame, frame_w: int, frame_h: int, max_detections: int = 3) -> list:
     """
-    Detect regions of interest using Canny edge detection + contours.
-    Returns bounding boxes as CSS percentage positions for AR overlay.
+    Detect objects using YOLOv8 and return labeled bounding boxes
+    as CSS percentage positions for AR overlay.
     """
-    if frame is None or frame_w == 0 or frame_h == 0:
+    if frame is None or frame_w == 0 or frame_h == 0 or yolo_model is None:
         return []
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+    results = yolo_model(frame, verbose=False, conf=0.4)[0]
 
-    # Dilate to close gaps in edges
-    edges = cv2.dilate(edges, None, iterations=2)
+    # Sort by confidence (highest first), cap at max_detections
+    boxes = results.boxes
+    if len(boxes) == 0:
+        return []
 
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Filter by area and sort by size (largest first)
-    min_area = frame_w * frame_h * 0.005  # at least 0.5% of frame
-    max_area = frame_w * frame_h * 0.8    # no bigger than 80% of frame
-    valid = []
-    for c in contours:
-        area = cv2.contourArea(c)
-        if min_area < area < max_area:
-            valid.append((area, c))
-
-    valid.sort(key=lambda x: x[0], reverse=True)
-    valid = valid[:max_detections]
+    sorted_indices = boxes.conf.argsort(descending=True)[:max_detections]
 
     detections = []
-    for i, (_, contour) in enumerate(valid):
-        x, y, bw, bh = cv2.boundingRect(contour)
-        # Convert to CSS percentages, bucket to nearest 5% for stable IDs
-        left_pct = round(x / frame_w * 100)
-        top_pct = round(y / frame_h * 100)
-        w_pct = round(bw / frame_w * 100)
-        h_pct = round(bh / frame_h * 100)
+    for idx in sorted_indices:
+        x1, y1, x2, y2 = boxes.xyxy[idx].tolist()
+        conf = boxes.conf[idx].item()
+        cls_id = int(boxes.cls[idx].item())
+        label = results.names[cls_id]
 
-        # Stable ID based on position bucket (nearest 5%)
-        id_key = f"det-{left_pct // 5}-{top_pct // 5}"
+        left_pct = round(x1 / frame_w * 100)
+        top_pct = round(y1 / frame_h * 100)
+        w_pct = round((x2 - x1) / frame_w * 100)
+        h_pct = round((y2 - y1) / frame_h * 100)
+
+        if label == "cell phone":
+            label = "mouse"
+        display_label = label if conf >= 0.5 else "object"
+        id_key = f"det-{display_label}-{left_pct // 10}-{top_pct // 10}"
 
         detections.append({
             "id": id_key,
             "type": "rectangle",
-            "label": "Region of interest",
+            "label": f"{display_label} {conf:.0%}",
             "color": "gold",
             "position": {
                 "top": f"{top_pct}%",
@@ -219,7 +219,7 @@ async def preview(image: UploadFile = File(...)):
     """
     raw_bytes = await image.read()
     processed_bytes, w, h, was_preprocessed, frame = preprocess_frame(raw_bytes)
-    detections = detect_regions(frame, w, h) if frame is not None else []
+    detections = detect_objects(frame, w, h) if frame is not None else []
     b64_image = base64.b64encode(processed_bytes).decode("utf-8")
 
     return {
