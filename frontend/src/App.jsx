@@ -50,7 +50,7 @@ function App() {
     }
   }, [camera.status, session.phase]);
 
-  // OpenCV preview + detection loop: every 2s during active session
+  // OpenCV preview + detection loop: runs as fast as possible without pileup
   useEffect(() => {
     if (session.phase !== "active" || camera.status !== "active") {
       setPreviewUrl(null);
@@ -62,23 +62,34 @@ function App() {
       return;
     }
 
-    const interval = setInterval(async () => {
-      const videoEl = camera.videoRef.current;
-      if (!videoEl || videoEl.readyState < 2) return;
-      try {
-        const blob = await captureFrame(videoEl);
-        const { imageUrl, detections: newDetections } = await fetchPreview(blob);
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = imageUrl;
-        setPreviewUrl(imageUrl);
-        setDetections(newDetections);
-      } catch {
-        // Preview server not running — ignore silently
+    let cancelled = false;
+
+    const loop = async () => {
+      while (!cancelled) {
+        const videoEl = camera.videoRef.current;
+        if (videoEl && videoEl.readyState >= 2) {
+          try {
+            const blob = await captureFrame(videoEl);
+            const { imageUrl, detections: newDetections } = await fetchPreview(blob);
+            if (cancelled) { URL.revokeObjectURL(imageUrl); break; }
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+            previewUrlRef.current = imageUrl;
+            setPreviewUrl(imageUrl);
+            setDetections(newDetections);
+          } catch {
+            // Preview server not running — wait before retrying
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        } else {
+          await new Promise((r) => setTimeout(r, 500));
+        }
       }
-    }, 2000);
+    };
+
+    loop();
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
         previewUrlRef.current = null;
