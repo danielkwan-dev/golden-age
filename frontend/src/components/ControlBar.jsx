@@ -25,12 +25,15 @@ function ControlButton({ onClick, active, danger, children, label }) {
 }
 
 export default function ControlBar({
-  isMuted,
-  onToggleMute,
   onEndSession,
   torchSupported,
   torchOn,
   onToggleTorch,
+  listening,
+  scanning,
+  aiSpeaking,
+  onPressStart,
+  onPressEnd,
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -40,6 +43,8 @@ export default function ControlBar({
     setShowConfirm(false);
     onEndSession();
   };
+
+  const micDisabled = scanning || aiSpeaking;
 
   return (
     <>
@@ -87,22 +92,56 @@ export default function ControlBar({
         className="glass border-t border-white/10 rounded-t-2xl px-8 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <div className="flex items-center justify-center gap-10">
-          {/* Mute */}
-          <ControlButton
-            onClick={onToggleMute}
-            active={!isMuted}
-            label={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? (
-              <svg className="w-5 h-5 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19 19-1.409-1.409M12 18.75a6 6 0 0 1-6-6v-1.5m12 0v1.5a6 6 0 0 1-.34 2.009M12 18.75v3m-3 0h6M9 4.453A3.75 3.75 0 0 1 15.75 6v6c0 .414-.067.812-.19 1.183M12 1.5a3.75 3.75 0 0 0-3.75 3.75v6c0 .093.003.186.01.278" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V5.25a3 3 0 1 1 6 0v7.5a3 3 0 0 1-3 3Z" />
-              </svg>
-            )}
-          </ControlButton>
+          {/* Hold-to-talk mic button */}
+          <div className="flex flex-col items-center gap-1.5">
+            <motion.button
+              onPointerDown={micDisabled ? undefined : onPressStart}
+              onPointerUp={micDisabled ? undefined : onPressEnd}
+              onPointerLeave={listening ? onPressEnd : undefined}
+              className={`w-12 h-12 rounded-full flex items-center justify-center select-none touch-none transition-all duration-200 ${
+                micDisabled
+                  ? "bg-gold/10 border border-gold/20 cursor-wait opacity-40"
+                  : listening
+                    ? "bg-danger/30 border-2 border-danger/50 cursor-pointer"
+                    : "glass border border-gold/40 cursor-pointer"
+              }`}
+              animate={
+                listening
+                  ? { scale: [1, 1.1, 1] }
+                  : { scale: 1 }
+              }
+              transition={
+                listening
+                  ? { duration: 0.8, repeat: Infinity, ease: "easeInOut" }
+                  : { duration: 0.2 }
+              }
+            >
+              {scanning ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-5 h-5 border-2 border-gold/30 border-t-gold rounded-full"
+                />
+              ) : (
+                <svg
+                  className={`w-5 h-5 ${listening ? "text-white" : "text-gold"}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V5.25a3 3 0 1 1 6 0v7.5a3 3 0 0 1-3 3Z"
+                  />
+                </svg>
+              )}
+            </motion.button>
+            <span className="text-[10px] text-white/30">
+              {scanning ? "Scanning" : listening ? "Release" : "Hold"}
+            </span>
+          </div>
 
           {/* End session */}
           <ControlButton onClick={handleEnd} danger label="End">
