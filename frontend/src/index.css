@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  font-family: "Fraunces", "Georgia", serif;
+  background: #f7f3ea;
+  color: #1c1c1c;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
