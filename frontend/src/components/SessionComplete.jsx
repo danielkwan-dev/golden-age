@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { mockConversation } from "../data/mockConversation";
 
 /* ── Gold confetti particles ── */
 function Confetti() {
@@ -104,47 +103,24 @@ function TranscriptModal({ transcript, onClose }) {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        {mockConversation.map((step, si) => {
-          // Find transcript messages belonging to this step
-          let stepStartIdx = 0;
-          for (let i = 0; i < si; i++) {
-            stepStartIdx += mockConversation[i].exchanges.length;
-          }
-          const stepMessages = transcript.slice(
-            stepStartIdx,
-            stepStartIdx + step.exchanges.length
-          );
-
-          return (
-            <div key={si}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-gold font-bold text-sm">Step {step.step}</span>
-                <span className="text-white/30 text-sm">—</span>
-                <span className="text-white/70 text-sm">{step.title}</span>
-              </div>
-              <div className="space-y-2.5 pl-2 border-l border-gold/15">
-                {stepMessages.map((msg, mi) => (
-                  <div
-                    key={mi}
-                    className={`pl-3 ${msg.speaker === "ai" ? "" : "text-right"}`}
-                  >
-                    <span className={`text-[10px] font-semibold block mb-0.5 ${msg.speaker === "ai" ? "text-gold/60" : "text-white/40"}`}>
-                      {msg.speaker === "ai" ? "AI" : "You"}
-                    </span>
-                    <p className={`text-sm leading-relaxed inline-block max-w-[85%] rounded-lg px-3 py-2 ${
-                      msg.speaker === "ai"
-                        ? "bg-charcoal/60 text-white/90 text-left"
-                        : "bg-white/5 text-white/70"
-                    }`}>
-                      {msg.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        {transcript.map((msg, i) => (
+          <div
+            key={i}
+            className={`${msg.speaker === "ai" ? "" : "text-right"}`}
+          >
+            <span className={`text-[10px] font-semibold block mb-0.5 ${msg.speaker === "ai" ? "text-gold/60" : "text-white/40"}`}>
+              {msg.speaker === "ai" ? "MIDAS" : "You"}
+            </span>
+            <p className={`text-sm leading-relaxed inline-block max-w-[85%] rounded-lg px-3 py-2 whitespace-pre-line ${
+              msg.speaker === "ai"
+                ? "bg-charcoal/60 text-white/90 text-left"
+                : "bg-white/5 text-white/70"
+            }`}>
+              {msg.text}
+            </p>
+          </div>
+        ))}
       </div>
     </motion.div>
   );
@@ -156,7 +132,6 @@ export default function SessionComplete({ session, onRestart }) {
   const [duration, setDuration] = useState("—");
 
   useEffect(() => {
-    // Approximate duration from transcript timestamps
     const t = session.transcript;
     if (t.length >= 2) {
       const start = t[0].timestamp;
@@ -166,8 +141,8 @@ export default function SessionComplete({ session, onRestart }) {
     }
   }, [session.transcript]);
 
-  const stepsCompleted = session.totalSteps;
-  const partsUsed = 5;
+  const exchanges = session.transcript.length;
+  const deviceName = session.diagnosis?.device || "your device";
 
   return (
     <motion.div
@@ -188,28 +163,32 @@ export default function SessionComplete({ session, onRestart }) {
         <AnimatedCheckmark />
 
         <h1 className="text-3xl sm:text-4xl font-bold text-gold gold-glow rounded-2xl inline-block mb-2 text-camera">
-          Repair Complete
+          Session Complete
         </h1>
         <p className="text-white/80 text-sm sm:text-base font-light mb-8">
-          Your iPhone 14 screen has been replaced successfully
+          Repair guidance for {deviceName} has been provided
         </p>
 
         {/* Summary card */}
         <div className="glass border border-gold/20 rounded-2xl p-5 mb-8 space-y-3">
           <div className="flex justify-between text-sm">
-            <span className="text-white/50">Steps completed</span>
-            <span className="text-gold font-semibold">{stepsCompleted}</span>
+            <span className="text-white/50">Exchanges</span>
+            <span className="text-gold font-semibold">{exchanges}</span>
           </div>
           <div className="w-full h-px bg-white/5" />
           <div className="flex justify-between text-sm">
             <span className="text-white/50">Duration</span>
             <span className="text-gold font-semibold">{duration}</span>
           </div>
-          <div className="w-full h-px bg-white/5" />
-          <div className="flex justify-between text-sm">
-            <span className="text-white/50">Parts used</span>
-            <span className="text-gold font-semibold">{partsUsed}</span>
-          </div>
+          {session.diagnosis?.estimated_cost && (
+            <>
+              <div className="w-full h-px bg-white/5" />
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50">Est. repair cost</span>
+                <span className="text-gold font-semibold">{session.diagnosis.estimated_cost}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Buttons */}
