@@ -1,18 +1,27 @@
 import { motion } from "framer-motion";
-import StepIndicator from "./StepIndicator";
 import TranscriptPanel from "./TranscriptPanel";
-import VoiceOrb from "./VoiceOrb";
 import ControlBar from "./ControlBar";
-import { mockConversation } from "../data/mockConversation";
 
 export default function ActiveSession({
   session,
   mic,
+  videoRef,
   torchSupported,
   torchOn,
   onToggleTorch,
 }) {
-  const step = mockConversation[session.currentStep] || mockConversation[0];
+  const handlePressStart = (e) => {
+    e.preventDefault();
+    if (session.scanning || session.aiSpeaking) return;
+    mic.startListening();
+  };
+
+  const handlePressEnd = (e) => {
+    e.preventDefault();
+    if (!mic.listening) return;
+    const spokenText = mic.stopListening();
+    session.scan(videoRef.current, spokenText);
+  };
 
   return (
     <motion.div
@@ -22,24 +31,107 @@ export default function ActiveSession({
       transition={{ duration: 0.4 }}
       className="absolute inset-0 flex flex-col pointer-events-none"
     >
-      {/* Top: Step indicator */}
+      {/* Top: Device info or instruction */}
       <div className="flex justify-center pt-[max(1rem,env(safe-area-inset-top))] px-4 pointer-events-auto">
-        <StepIndicator
-          currentStep={step.step}
-          totalSteps={session.totalSteps}
-          title={step.title}
-        />
+        {session.diagnosis ? (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass border border-gold/20 rounded-2xl px-4 py-2 text-center"
+          >
+            <p className="text-gold text-sm font-semibold">
+              {session.diagnosis.device}
+            </p>
+            {session.diagnosis.damage_detected && (
+              <p className="text-white/60 text-xs mt-0.5">
+                {session.diagnosis.severity} damage &middot;{" "}
+                {session.diagnosis.estimated_difficulty}
+              </p>
+            )}
+          </motion.div>
+        ) : (
+          <div className="glass border border-white/10 rounded-2xl px-4 py-2">
+            <p className="text-white/60 text-sm">
+              Point camera at your broken device
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Center: VoiceOrb */}
-      <div className="flex-1 flex items-center justify-center">
-        <VoiceOrb
-          aiSpeaking={session.aiSpeaking}
-          sessionStatus={session.sessionStatus}
-        />
+      {/* Center: Hold-to-talk button + live speech */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        {/* Live speech bubble (shows while holding button) */}
+        {mic.liveTranscript && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass border border-white/10 rounded-xl px-4 py-2 mx-8 max-w-sm"
+          >
+            <p className="text-white/80 text-sm text-center italic">
+              &ldquo;{mic.liveTranscript}&rdquo;
+            </p>
+          </motion.div>
+        )}
+
+        {/* Hold-to-talk / scanning button */}
+        <motion.button
+          onPointerDown={handlePressStart}
+          onPointerUp={handlePressEnd}
+          onPointerLeave={mic.listening ? handlePressEnd : undefined}
+          disabled={session.scanning || session.aiSpeaking}
+          className={`w-24 h-24 rounded-full flex items-center justify-center pointer-events-auto select-none touch-none ${
+            session.scanning || session.aiSpeaking
+              ? "bg-gold/20 border-2 border-gold/40 cursor-wait"
+              : mic.listening
+                ? "bg-danger/30 border-2 border-danger/50 scale-110 cursor-pointer"
+                : "gold-gradient gold-pulse cursor-pointer"
+          }`}
+          animate={
+            mic.listening
+              ? { scale: [1.08, 1.12, 1.08] }
+              : { scale: 1 }
+          }
+          transition={
+            mic.listening
+              ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+              : { duration: 0.2 }
+          }
+        >
+          {session.scanning ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-8 h-8 border-[3px] border-gold/30 border-t-gold rounded-full"
+            />
+          ) : (
+            <svg
+              className={`w-8 h-8 ${mic.listening ? "text-white" : "text-black"}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V5.25a3 3 0 1 1 6 0v7.5a3 3 0 0 1-3 3Z"
+              />
+            </svg>
+          )}
+        </motion.button>
+
+        <p className="text-white/40 text-xs pointer-events-none">
+          {session.scanning
+            ? "Analyzing..."
+            : session.aiSpeaking
+              ? "MIDAS is responding..."
+              : mic.listening
+                ? "Listening... release to send"
+                : "Hold to speak"}
+        </p>
       </div>
 
-      {/* Bottom-left: TranscriptPanel */}
+      {/* Bottom-left: TranscriptPanel (conversation history) */}
       <TranscriptPanel
         transcript={session.transcript}
         streamingText={session.streamingText}
