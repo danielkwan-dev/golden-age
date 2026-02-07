@@ -27,6 +27,7 @@ from configs.config import load_config
 from utils.overlay import draw_detection_overlay, draw_repair_panel
 from utils.repair_kb import get_repair_info
 from utils.transcriber import AudioTranscriber
+from utils.speech_context import SpeechContext
 
 
 class MidasInference:
@@ -40,6 +41,7 @@ class MidasInference:
         self.use_audio = use_audio
         self.transcript_queue = queue.Queue()
         self.latest_transcript = ""
+        self.speech_context = SpeechContext(boost_factor=0.15, decay=0.85)
         if use_audio:
             self.transcriber = AudioTranscriber(
                 model_size=self.cfg.audio.whisper_model,
@@ -108,15 +110,21 @@ class MidasInference:
                 if not ret:
                     break
 
-                # Check for new transcript
+                # Check for new transcript and update speech context
                 if self.use_audio:
                     while not self.transcript_queue.empty():
                         self.latest_transcript = self.transcript_queue.get_nowait()
+                        self.speech_context.update(self.latest_transcript)
 
                 # Run detection
                 annotated, detections = self.process_frame(frame)
                 if detections:
+                    # Apply speech context to boost/suppress detections
+                    detections = self.speech_context.adjust_detections(detections)
                     last_detections = detections
+
+                # Decay speech context each frame
+                self.speech_context.tick()
 
                 # Draw AR overlay
                 overlay = draw_detection_overlay(
@@ -133,6 +141,11 @@ class MidasInference:
                 # Draw transcript bar at bottom
                 if self.latest_transcript:
                     overlay = self._draw_transcript_bar(overlay, self.latest_transcript)
+
+                # Draw speech context indicator
+                context_summary = self.speech_context.get_context_summary()
+                if context_summary:
+                    overlay = self._draw_context_bar(overlay, context_summary)
 
                 # FPS counter
                 now = time.time()
@@ -156,6 +169,18 @@ class MidasInference:
             cv2.destroyAllWindows()
             if self.use_audio:
                 self.transcriber.stop()
+
+    @staticmethod
+    def _draw_context_bar(frame: np.ndarray, text: str) -> np.ndarray:
+        """Draw a speech context indicator bar above the transcript bar."""
+        h, w = frame.shape[:2]
+        bar_y = h - 80
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, bar_y), (w, bar_y + 25), (40, 40, 40), -1)
+        frame = cv2.addWeighted(overlay, 0.6, frame, 0.4, 0)
+        cv2.putText(frame, text, (10, bar_y + 17),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 255, 200), 1)
+        return frame
 
     @staticmethod
     def _draw_transcript_bar(frame: np.ndarray, text: str) -> np.ndarray:
