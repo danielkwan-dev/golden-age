@@ -1,23 +1,74 @@
-:root {
-  color-scheme: light;
-  font-family: "Fraunces", "Georgia", serif;
-  background: #f7f3ea;
-  color: #1c1c1c;
+@import "tailwindcss";
+
+@theme {
+  --color-gold: #D4AF37;
+  --color-gold-light: #F5E6A3;
+  --color-gold-dark: #B8960C;
+  --color-gold-muted: #C9A84C;
+  --color-black: #0A0A0A;
+  --color-black-soft: rgba(0, 0, 0, 0.7);
+  --color-charcoal: #2A2A2A;
+  --color-white: #FFFFFF;
+  --color-success: #4ADE80;
+  --color-danger: #F87171;
+  --font-sans: "Inter", sans-serif;
 }
 
-* {
-  box-sizing: border-box;
+html, body, #root {
+  height: 100dvh;
+  width: 100vw;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+  background-color: #0A0A0A;
+  color: #FFFFFF;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
 }
 
-body {
-  min-height: 100vh;
+/* Glassmorphism overlay */
+.glass {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background-color: rgba(0, 0, 0, 0.6);
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
+/* Gold glow — subtle gold box-shadow */
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.3), 0 0 40px rgba(212, 175, 55, 0.1);
+}
+
+/* Gold gradient */
+.gold-gradient {
+  background: linear-gradient(135deg, #B8960C, #F5E6A3);
+}
+
+/* Gold pulse — subtle pulsing for active states */
+.gold-pulse {
+  animation: goldPulse 2s ease-in-out infinite;
+}
+
+@keyframes goldPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.5), 0 0 40px rgba(212, 175, 55, 0.2);
+  }
+}
+
+/* Text shadow for legibility over camera feed */
+.text-camera {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Hide scrollbar but keep scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
