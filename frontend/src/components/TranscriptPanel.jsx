@@ -12,7 +12,7 @@ function MessageBubble({ message, isStreaming }) {
       className={`flex flex-col ${isAi ? "items-start" : "items-end"}`}
     >
       <span className={`text-[10px] font-semibold mb-0.5 ${isAi ? "text-gold/70" : "text-white/40"}`}>
-        {isAi ? "AI" : "You"}
+        {isAi ? "Midas" : "You"}
       </span>
       <div
         className={`rounded-lg px-2.5 py-1.5 max-w-full text-xs leading-relaxed ${isAi
