@@ -1,0 +1,88 @@
+# MIDAS ML Configuration — YOLOv11 + OpenCV
+
+# Device categories the model can detect
+device_types:
+  - smartphone
+  - tablet
+  - laptop
+  - circuit_board
+  - desktop_component
+
+# Fault classes the model detects (these become YOLO class labels)
+fault_classes:
+  # Smartphone / Tablet
+  - cracked_screen
+  - loose_display_connector
+  - damaged_charging_port
+  - battery_swelling
+  - water_damage_corrosion
+  - broken_speaker_grille
+  - camera_lens_crack
+  - bent_frame
+  # Laptop
+  - broken_hinge
+  - damaged_keyboard
+  - swollen_battery
+  - loose_ram_module
+  - damaged_fan
+  - broken_trackpad
+  # Circuit board
+  - burnt_component
+  - cold_solder_joint
+  - blown_capacitor
+  - corroded_trace
+  - cracked_pcb
+  - missing_component
+  # Desktop
+  - bent_cpu_pin
+  - damaged_pcie_slot
+  - bulging_capacitor
+  - burnt_vrm
+  - broken_dimm_slot
+
+# YOLOv11 model
+model:
+  variant: "yolo11n"            # yolo11n | yolo11s | yolo11m | yolo11l | yolo11x
+  task: "detect"                # detect | segment
+  image_size: 640
+  pretrained: true
+
+# Training
+training:
+  epochs: 100
+  batch_size: 16
+  learning_rate: 0.01
+  optimizer: "AdamW"
+  patience: 20                  # early stopping patience
+  device: "0"                   # GPU id, or "cpu"
+  workers: 8
+  augment: true
+  val_split: 0.15
+  seed: 42
+  resume: false
+
+# Audio / speech-to-text
+audio:
+  whisper_model: "base"
+  sample_rate: 16000
+  chunk_duration_sec: 5
+
+# Inference
+inference:
+  confidence_threshold: 0.4
+  iou_threshold: 0.45
+  max_detections: 10
+  frame_sample_interval: 5     # analyze every Nth frame
+  device: "0"
+  show_labels: true
+  show_confidence: true
+  overlay_alpha: 0.4           # transparency for overlay drawings
+
+# Data paths (relative to ml/)
+data:
+  dataset_root: "data"
+  images_dir: "images"
+  labels_dir: "labels"
+  audio_dir: "audio_clips"
+  checkpoint_dir: "runs"
+  dataset_yaml: "dataset.yaml"
