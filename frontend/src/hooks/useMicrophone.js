@@ -1,13 +1,56 @@
-// useMicrophone — audio capture + mock transcription
-import { useState, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export default function useMicrophone() {
-  const [isListening, setIsListening] = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | requesting | active | denied | error
   const [isMuted, setIsMuted] = useState(false);
+  const streamRef = useRef(null);
 
-  const startListening = useCallback(() => setIsListening(true), []);
-  const stopListening = useCallback(() => setIsListening(false), []);
-  const toggleMute = useCallback(() => setIsMuted((m) => !m), []);
+  const startMic = useCallback(async () => {
+    setStatus("requesting");
+    try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      streamRef.current = audioStream;
+      setStatus("active");
+    } catch (err) {
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setStatus("denied");
+      } else {
+        setStatus("error");
+      }
+    }
+  }, []);
 
-  return { isListening, isMuted, startListening, stopListening, toggleMute };
+  const stopMic = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setStatus("idle");
+    setIsMuted(false);
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (streamRef.current) {
+        streamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = !next;
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  return { status, isMuted, startMic, stopMic, toggleMute };
 }

@@ -4,6 +4,8 @@ export default function useCamera() {
   const [status, setStatus] = useState("idle"); // idle | requesting | active | denied | error
   const [error, setError] = useState(null);
   const [isFrontFacing, setIsFrontFacing] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -13,11 +15,13 @@ export default function useCamera() {
       videoRef.current.srcObject = mediaStream;
     }
 
-    // Detect if front-facing camera
+    // Detect if front-facing camera and torch capability
     const videoTrack = mediaStream.getVideoTracks()[0];
     if (videoTrack) {
       const settings = videoTrack.getSettings();
       setIsFrontFacing(settings.facingMode === "user");
+      const capabilities = videoTrack.getCapabilities?.() || {};
+      setTorchSupported(capabilities.torch === true);
     }
 
     setStatus("active");
@@ -73,6 +77,20 @@ export default function useCamera() {
     setStatus("idle");
   }, []);
 
+  const toggleTorch = useCallback(async () => {
+    if (!streamRef.current) return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const next = !torchOn;
+      await videoTrack.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      // torch not supported at runtime — hide button
+      setTorchSupported(false);
+    }
+  }, [torchOn]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -89,5 +107,8 @@ export default function useCamera() {
     videoRef,
     startCamera,
     stopCamera,
+    torchSupported,
+    torchOn,
+    toggleTorch,
   };
 }
