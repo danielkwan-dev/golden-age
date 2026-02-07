@@ -23,19 +23,3 @@ out/
 
 *.tmp
 *.temp
-
-# ML datasets and training artifacts
-ml/data/phone_damage/
-ml/data/screen_damage/
-ml/data/merged/
-ml/runs/
-*.pt
-*.onnx
-*.zip
-nul
-
-# Backend
-midass.db
-models/runs/
-models/midas_yolo.pt
-.vercel/
