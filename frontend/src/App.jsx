@@ -1,14 +1,68 @@
+import { useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import Hero from "./components/Hero";
+import UploadSection from "./components/UploadSection";
+import useDiagnosis from "./hooks/useDiagnosis";
+
 function App() {
+  const { status, data, submitDiagnosis } = useDiagnosis();
+  const resultsRef = useRef(null);
+
+  useEffect(() => {
+    if (status === "loading" || status === "success") {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [status]);
+
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-4">
-      <h1 className="text-5xl font-bold text-white mb-4">
-        Fix<span className="text-gold">It</span>
-      </h1>
-      <p className="text-gold-muted text-lg">
-        AI-powered repair guides for your broken devices.
-      </p>
+    <div className="bg-black min-h-screen">
+      <Hero />
+      <UploadSection
+        onSubmit={submitDiagnosis}
+        isLoading={status === "loading"}
+      />
+
+      {/* Loading / Results area */}
+      <div ref={resultsRef}>
+        <AnimatePresence mode="wait">
+          {status === "loading" && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="max-w-4xl mx-auto px-4 pb-20"
+            >
+              <div className="space-y-4">
+                <div className="h-8 w-48 rounded-lg gold-shimmer" />
+                <div className="h-4 w-full rounded gold-shimmer" />
+                <div className="h-4 w-3/4 rounded gold-shimmer" />
+                <div className="h-32 w-full rounded-xl gold-shimmer" />
+                <div className="h-4 w-5/6 rounded gold-shimmer" />
+                <div className="h-4 w-2/3 rounded gold-shimmer" />
+              </div>
+            </motion.div>
+          )}
+
+          {status === "success" && data && (
+            <motion.div
+              key="results"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="max-w-4xl mx-auto px-4 pb-20"
+            >
+              <div className="rounded-xl border border-charcoal bg-black-soft p-8 text-center">
+                <p className="text-gold-muted text-lg">
+                  Results will appear here
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
