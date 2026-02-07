@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 function MessageBubble({ message, isStreaming }) {
-  const isAi = message.speaker === "Midas";
+  const isAi = message.speaker === "ai";
 
   return (
     <motion.div
@@ -12,12 +12,12 @@ function MessageBubble({ message, isStreaming }) {
       className={`flex flex-col ${isAi ? "items-start" : "items-end"}`}
     >
       <span className={`text-[10px] font-semibold mb-0.5 ${isAi ? "text-gold/70" : "text-white/40"}`}>
-        {isAi ? "Midas" : "You"}
+        {isAi ? "AI" : "You"}
       </span>
       <div
         className={`rounded-lg px-2.5 py-1.5 max-w-full text-xs leading-relaxed ${isAi
-            ? "bg-charcoal/80 border-l-2 border-gold-muted/50 text-white/90"
-            : "bg-white/5 text-white/70"
+          ? "bg-charcoal/80 border-l-2 border-gold-muted/50 text-white/90"
+          : "bg-white/5 text-white/70"
           }`}
       >
         {message.text}
@@ -78,8 +78,8 @@ export default function TranscriptPanel({ transcript, streamingText, aiSpeaking 
             >
               {lastMessage && (
                 <p className="text-[10px] text-white/50 truncate">
-                  <span className={lastMessage.speaker === "Midas" ? "text-gold/60" : "text-white/40"}>
-                    {lastMessage.speaker === "Midas" ? "Midas: " : "You: "}
+                  <span className={lastMessage.speaker === "ai" ? "text-gold/60" : "text-white/40"}>
+                    {lastMessage.speaker === "ai" ? "Midas: " : "You: "}
                   </span>
                   {lastMessage.text}
                 </p>
