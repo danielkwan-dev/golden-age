@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "midas",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,7 +14,6 @@
     "framer-motion": "^12.33.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-dropzone": "^14.4.0",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {

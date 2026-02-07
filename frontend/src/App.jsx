@@ -1,64 +1,53 @@
-import { useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Hero from "./components/Hero";
-import UploadSection from "./components/UploadSection";
-import DiagnosisCard from "./components/DiagnosisCard";
-import MaterialsList from "./components/MaterialsList";
-import useDiagnosis from "./hooks/useDiagnosis";
+import { useEffect } from "react";
+import CameraFeed from "./components/CameraFeed";
+import PermissionGate from "./components/PermissionGate";
+import StartScreen from "./components/StartScreen";
+import ActiveSession from "./components/ActiveSession";
+import AROverlayLayer from "./components/AROverlayLayer";
+import SessionComplete from "./components/SessionComplete";
+import useCamera from "./hooks/useCamera";
+import useRepairSession from "./hooks/useRepairSession";
+import useAROverlays from "./hooks/useAROverlays";
 
 function App() {
-  const { status, data, submitDiagnosis } = useDiagnosis();
-  const resultsRef = useRef(null);
+  const camera = useCamera();
+  const session = useRepairSession();
+  const ar = useAROverlays();
 
+  // Advance to 'ready' phase once camera is active
   useEffect(() => {
-    if (status === "loading" || status === "success") {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (camera.status === "active" && session.phase === "permissions") {
+      session.grantPermissions();
     }
-  }, [status]);
+  }, [camera.status, session.phase, session.grantPermissions]);
 
   return (
-    <div className="bg-black min-h-screen">
-      <Hero />
-      <UploadSection
-        onSubmit={submitDiagnosis}
-        isLoading={status === "loading"}
-      />
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-black">
+      {/* Layer 1: Camera feed (z-0) */}
+      <CameraFeed videoRef={camera.videoRef} isFrontFacing={camera.isFrontFacing} />
 
-      {/* Loading / Results area */}
-      <div ref={resultsRef}>
-        <AnimatePresence mode="wait">
-          {status === "loading" && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="max-w-4xl mx-auto px-4 pb-20"
-            >
-              <div className="space-y-4">
-                <div className="h-8 w-48 rounded-lg gold-shimmer" />
-                <div className="h-4 w-full rounded gold-shimmer" />
-                <div className="h-4 w-3/4 rounded gold-shimmer" />
-                <div className="h-32 w-full rounded-xl gold-shimmer" />
-                <div className="h-4 w-5/6 rounded gold-shimmer" />
-                <div className="h-4 w-2/3 rounded gold-shimmer" />
-              </div>
-            </motion.div>
-          )}
+      {/* Layer 2: AR overlay (z-10) */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
+        <AROverlayLayer annotations={ar.activeAnnotations} />
+      </div>
 
-          {status === "success" && data && (
-            <motion.div
-              key="results"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="max-w-4xl mx-auto px-4 pb-20 space-y-10"
-            >
-              <DiagnosisCard data={data} />
-              <MaterialsList materials={data.materials} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* Layer 3: UI overlays (z-20) */}
+      <div className="absolute inset-0 z-20">
+        {session.phase === "permissions" && (
+          <PermissionGate
+            cameraStatus={camera.status}
+            onRequestCamera={camera.startCamera}
+          />
+        )}
+        {session.phase === "ready" && (
+          <StartScreen onStart={session.startSession} />
+        )}
+        {session.phase === "active" && (
+          <ActiveSession session={session} />
+        )}
+        {session.phase === "complete" && (
+          <SessionComplete session={session} onRestart={session.resetSession} />
+        )}
       </div>
     </div>
   );

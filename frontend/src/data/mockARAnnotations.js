@@ -1,0 +1,68 @@
+export const arAnnotations = {
+  "highlight-screen": {
+    type: "rectangle",
+    label: "Cracked area",
+    color: "gold",
+    position: { top: "25%", left: "20%", width: "60%", height: "40%" },
+  },
+  "arrow-power-button": {
+    type: "arrow",
+    label: "Power button",
+    color: "gold",
+    position: { top: "30%", left: "85%" },
+    rotation: 0,
+  },
+  "circle-screws": {
+    type: "circle",
+    label: "Pentalobe screws",
+    color: "gold",
+    position: { top: "80%", left: "45%" },
+    radius: 30,
+  },
+  "highlight-bottom-edge": {
+    type: "rectangle",
+    label: "Heat this edge",
+    color: "gold",
+    position: { top: "85%", left: "15%", width: "70%", height: "8%" },
+  },
+  "suction-cup-position": {
+    type: "circle",
+    label: "Place suction cup here",
+    color: "gold",
+    position: { top: "65%", left: "50%" },
+    radius: 45,
+  },
+  "highlight-cables": {
+    type: "rectangle",
+    label: "Ribbon cables",
+    color: "danger",
+    position: { top: "15%", left: "55%", width: "25%", height: "35%" },
+  },
+  "arrow-bracket-screws": {
+    type: "arrow",
+    label: "Bracket screws",
+    color: "gold",
+    position: { top: "20%", left: "65%" },
+    rotation: 45,
+  },
+  "arrow-connector-bottom": {
+    type: "arrow",
+    label: "Start here",
+    color: "success",
+    position: { top: "42%", left: "60%" },
+    rotation: 90,
+  },
+  "arrow-connector-top": {
+    type: "arrow",
+    label: "Connect first",
+    color: "success",
+    position: { top: "18%", left: "60%" },
+    rotation: -90,
+  },
+  "highlight-screen-edges": {
+    type: "rectangle",
+    label: "Press edges to seat",
+    color: "gold",
+    position: { top: "10%", left: "10%", width: "80%", height: "80%" },
+  },
+};
