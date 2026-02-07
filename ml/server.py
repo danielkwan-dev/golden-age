@@ -1,20 +1,17 @@
 """
 MIDAS FastAPI Model Server.
 
-Serves the trained YOLOv11 model over HTTP. The web app sends video
-frames to the /detect endpoint and gets back detection results as JSON.
+Uses OpenCV for image preprocessing and GPT-4o Vision for damage
+identification and repair instruction generation. The web app sends
+camera frames and speech transcripts, and gets back a full diagnosis.
 
 Usage:
-    python server.py                                    # default port 8000
-    python server.py --port 8080                        # custom port
-    python server.py --model runs/train/weights/best.pt # custom model
+    python server.py                    # default port 8000
+    python server.py --port 8080        # custom port
 
 Endpoints:
-    POST /detect          - Send an image, get back detections + repair info
-    POST /repair          - Send detections + transcript, get LLM-generated repair instructions
-    POST /context         - Send speech transcript to update detection context
+    POST /analyze         - Send image + transcript, get diagnosis + repair steps
     GET  /health          - Health check
-    GET  /classes         - List all fault classes
 """
 
 import os
@@ -29,87 +26,41 @@ from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from ultralytics import YOLO
 import uvicorn
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from configs.config import load_config
-from utils.repair_kb import get_repair_info
-from utils.speech_context import SpeechContext
-from utils.llm_advisor import LLMAdvisor
+from utils.vision_advisor import VisionAdvisor
 
 
 # --- Response Models ---
 
-class BoundingBox(BaseModel):
-    x1: int
-    y1: int
-    x2: int
-    y2: int
-    center_x: int
-    center_y: int
-    width: int
-    height: int
-
-
-class RepairInfo(BaseModel):
+class AnalysisResponse(BaseModel):
+    device: str
+    damage_detected: bool
+    damage_description: str
     severity: str
-    tools: List[str]
-    steps: List[str]
-
-
-class Detection(BaseModel):
-    class_id: int
-    label: str
     confidence: float
-    bbox: BoundingBox
-    repair_info: RepairInfo
-    speech_match: bool = False
-
-
-class DetectionResponse(BaseModel):
-    detections: List[Detection]
-    frame_width: int
-    frame_height: int
-    speech_context: Optional[str] = None
-
-
-class ContextRequest(BaseModel):
-    transcript: str
-
-
-class ContextResponse(BaseModel):
-    status: str
-    context_summary: str
-
-
-class RepairRequest(BaseModel):
-    detections: List[dict]
-    transcript: str = ""
-    device_description: str = ""
-
-
-class RepairResponse(BaseModel):
-    diagnosis: str
-    severity: str
     tools: List[str]
     steps: List[str]
     warning: str
-    raw: str
+    estimated_difficulty: str
+    estimated_cost: str
+    frame_width: int
+    frame_height: int
+    preprocessed: bool
 
 
 class HealthResponse(BaseModel):
     status: str
-    model_loaded: bool
-    classes: int
+    vision_ready: bool
 
 
 # --- App ---
 
 app = FastAPI(
     title="MIDAS Model Server",
-    description="YOLOv11 fault detection API for the MIDAS AR repair assistant",
-    version="1.0.0",
+    description="OpenCV + GPT-4o Vision repair assistant API",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -119,205 +70,155 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Globals (initialized in startup)
-model: YOLO = None
-config = None
-speech_ctx: SpeechContext = None
-llm_advisor: LLMAdvisor = None
-fault_classes: List[str] = []
+# Globals
+vision_advisor: VisionAdvisor = None
 
 
-def init_model(model_path: str, config_path: str = None):
-    """Load the YOLO model and config."""
-    global model, config, speech_ctx, llm_advisor, fault_classes
+def init_server():
+    """Initialize the vision advisor."""
+    global vision_advisor
 
-    config = load_config(config_path)
-    fault_classes = config.fault_classes
-    speech_ctx = SpeechContext(boost_factor=0.15, decay=0.85)
-
-    # Initialize LLM advisor (uses OPENAI_API_KEY env var)
-    if os.environ.get("OPENAI_API_KEY"):
-        llm_advisor = LLMAdvisor()
-        print("LLM advisor initialized (GPT)")
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        vision_advisor = VisionAdvisor()
+        print("MIDAS server ready (GPT-4o Vision)")
     else:
-        print("Warning: OPENAI_API_KEY not set — /repair endpoint will be unavailable")
+        print("ERROR: OPENAI_API_KEY not set — server cannot analyze images")
 
-    if not os.path.exists(model_path):
-        print(f"Warning: model not found at {model_path}")
-        print("Train a model first with: python train.py")
-        return
 
-    model = YOLO(model_path)
-    print(f"Model loaded: {model_path}")
-    print(f"Classes ({len(fault_classes)}): {fault_classes}")
+def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool]:
+    """
+    OpenCV preprocessing pipeline for camera frames.
+
+    Enhances the image before sending to GPT-4o for better damage detection:
+    - Resize large images to save API tokens
+    - Auto white-balance and contrast enhancement (CLAHE)
+    - Sharpen to make cracks/scratches more visible
+
+    Returns:
+        (processed_jpeg_bytes, width, height, was_preprocessed)
+    """
+    # Decode image
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        return image_bytes, 0, 0, False
+
+    h, w = frame.shape[:2]
+
+    # Resize if too large (saves GPT-4o tokens, 1280px max dimension)
+    max_dim = 1280
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        h, w = frame.shape[:2]
+
+    # Convert to LAB color space for contrast enhancement
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+
+    # Apply CLAHE (adaptive histogram equalization) to the L channel
+    # This enhances contrast locally — makes cracks and scratches more visible
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l_enhanced = clahe.apply(l_channel)
+
+    # Merge back and convert to BGR
+    enhanced = cv2.merge([l_enhanced, a_channel, b_channel])
+    frame = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+
+    # Light sharpen to make damage edges clearer
+    kernel = np.array([
+        [0, -0.5, 0],
+        [-0.5, 3, -0.5],
+        [0, -0.5, 0],
+    ])
+    frame = cv2.filter2D(frame, -1, kernel)
+
+    # Encode back to JPEG
+    _, jpeg_bytes = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
+    return jpeg_bytes.tobytes(), w, h, True
 
 
 @app.get("/health", response_model=HealthResponse)
 def health():
     return HealthResponse(
-        status="ok" if model is not None else "no_model",
-        model_loaded=model is not None,
-        classes=len(fault_classes),
+        status="ok" if vision_advisor is not None else "no_api_key",
+        vision_ready=vision_advisor is not None,
     )
 
 
-@app.get("/classes")
-def get_classes():
-    return {
-        "classes": {i: name for i, name in enumerate(fault_classes)},
-        "total": len(fault_classes),
-    }
-
-
-@app.post("/detect", response_model=DetectionResponse)
-async def detect(
+@app.post("/analyze", response_model=AnalysisResponse)
+async def analyze(
     image: UploadFile = File(...),
-    apply_speech_context: bool = Form(default=True),
+    transcript: str = Form(default=""),
 ):
     """
-    Run fault detection on an uploaded image frame.
+    Analyze a device image for damage and generate repair instructions.
 
-    The web app should send camera frames here as JPEG/PNG.
-    Returns bounding boxes, fault labels, confidence scores,
-    and repair instructions for each detection.
+    The web app sends a camera frame (JPEG/PNG) and optionally the user's
+    speech transcript. OpenCV preprocesses the image, then GPT-4o Vision
+    identifies damage and generates repair steps — all in one call.
     """
-    if model is None:
-        return DetectionResponse(
-            detections=[], frame_width=0, frame_height=0,
-            speech_context="Model not loaded",
-        )
-
-    # Read image bytes
-    contents = await image.read()
-    pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
-    frame = np.array(pil_image)
-    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-
-    h, w = frame.shape[:2]
-
-    # Run YOLO detection
-    results = model.predict(
-        source=frame,
-        conf=config.inference.confidence_threshold,
-        iou=config.inference.iou_threshold,
-        max_det=config.inference.max_detections,
-        device=config.inference.device,
-        verbose=False,
-    )
-
-    detections = []
-    if results and len(results) > 0:
-        result = results[0]
-        if result.boxes is not None:
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
-                x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
-
-                label = fault_classes[cls_id] if cls_id < len(fault_classes) else "unknown"
-                repair = get_repair_info(label)
-
-                detections.append({
-                    "class_id": cls_id,
-                    "label": label,
-                    "confidence": conf,
-                    "bbox": (x1, y1, x2, y2),
-                    "repair_info": repair,
-                    "speech_match": False,
-                })
-
-    # Apply speech context if enabled
-    if apply_speech_context and speech_ctx:
-        detections = speech_ctx.adjust_detections(detections)
-        speech_ctx.tick()
-
-    # Format response
-    formatted = []
-    for det in detections:
-        x1, y1, x2, y2 = det["bbox"]
-        formatted.append(Detection(
-            class_id=det["class_id"],
-            label=det["label"],
-            confidence=round(det["confidence"], 4),
-            bbox=BoundingBox(
-                x1=x1, y1=y1, x2=x2, y2=y2,
-                center_x=(x1 + x2) // 2,
-                center_y=(y1 + y2) // 2,
-                width=x2 - x1,
-                height=y2 - y1,
-            ),
-            repair_info=RepairInfo(**det["repair_info"]),
-            speech_match=det.get("speech_match", False),
-        ))
-
-    context_summary = speech_ctx.get_context_summary() if speech_ctx else None
-
-    return DetectionResponse(
-        detections=formatted,
-        frame_width=w,
-        frame_height=h,
-        speech_context=context_summary,
-    )
-
-
-@app.post("/repair", response_model=RepairResponse)
-async def repair(req: RepairRequest):
-    """
-    Generate LLM-powered repair instructions from detection results.
-
-    The web app calls this after /detect to get dynamic, context-aware
-    repair instructions from GPT based on the detected damage and user speech.
-    """
-    if llm_advisor is None:
-        return RepairResponse(
-            diagnosis="LLM advisor not available — set OPENAI_API_KEY env var",
+    if vision_advisor is None:
+        return AnalysisResponse(
+            device="unknown",
+            damage_detected=False,
+            damage_description="Server not configured — set OPENAI_API_KEY",
             severity="unknown",
+            confidence=0.0,
             tools=[],
             steps=["Set the OPENAI_API_KEY environment variable and restart the server."],
             warning="None",
-            raw="",
+            estimated_difficulty="unknown",
+            estimated_cost="unknown",
+            frame_width=0,
+            frame_height=0,
+            preprocessed=False,
         )
 
-    result = llm_advisor.get_repair_instructions(
-        detections=req.detections,
-        transcript=req.transcript,
-        device_description=req.device_description,
+    # Read raw image bytes
+    raw_bytes = await image.read()
+
+    # OpenCV preprocessing (enhance contrast, sharpen, resize)
+    processed_bytes, w, h, was_preprocessed = preprocess_frame(raw_bytes)
+
+    # Determine MIME type
+    mime_type = image.content_type or "image/jpeg"
+
+    # Send to GPT-4o Vision for analysis
+    result = vision_advisor.analyze_image(
+        image_bytes=processed_bytes,
+        transcript=transcript,
+        mime_type="image/jpeg" if was_preprocessed else mime_type,
     )
 
-    return RepairResponse(**result)
+    # Remove 'raw' from response (internal debug field)
+    result.pop("raw", None)
 
-
-@app.post("/context", response_model=ContextResponse)
-async def update_context(req: ContextRequest):
-    """
-    Update the speech context with a new transcript chunk.
-
-    The web app should send Whisper transcripts here so that
-    speech context can boost/suppress detection results.
-    """
-    if speech_ctx is None:
-        return ContextResponse(status="error", context_summary="Not initialized")
-
-    speech_ctx.update(req.transcript)
-    return ContextResponse(
-        status="ok",
-        context_summary=speech_ctx.get_context_summary(),
+    return AnalysisResponse(
+        device=result.get("device", "unknown"),
+        damage_detected=result.get("damage_detected", False),
+        damage_description=result.get("damage_description", ""),
+        severity=result.get("severity", "unknown"),
+        confidence=result.get("confidence", 0.0),
+        tools=result.get("tools", []),
+        steps=result.get("steps", []),
+        warning=result.get("warning", "None"),
+        estimated_difficulty=result.get("estimated_difficulty", "unknown"),
+        estimated_cost=result.get("estimated_cost", "unknown"),
+        frame_width=w,
+        frame_height=h,
+        preprocessed=was_preprocessed,
     )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MIDAS Model Server")
-    parser.add_argument("--model", type=str, default=None,
-                        help="Path to trained YOLO model (.pt or .onnx)")
-    parser.add_argument("--config", type=str, default=None,
-                        help="Path to config YAML")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
-    if args.model is None:
-        ml_root = os.path.dirname(os.path.abspath(__file__))
-        args.model = os.path.join(ml_root, "runs", "train", "weights", "best.pt")
-
-    init_model(args.model, args.config)
+    init_server()
     uvicorn.run(app, host=args.host, port=args.port)
