@@ -20,6 +20,8 @@ import sys
 import io
 import argparse
 from typing import List, Optional
+from pathlib import Path
+from dotenv import load_dotenv
 
 import cv2
 import numpy as np
@@ -58,6 +60,10 @@ class HealthResponse(BaseModel):
 
 
 # --- App ---
+
+# Load environment variables from project root .env
+PROJECT_ROOT = Path(__file__).parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 app = FastAPI(
     title="MIDAS Model Server",
