@@ -1,7 +1,7 @@
 """
 MIDAS FastAPI Model Server.
 
-Serves the trained YOLOv11 model over HTTP. The Unity AR app sends video
+Serves the trained YOLOv11 model over HTTP. The web app sends video
 frames to the /detect endpoint and gets back detection results as JSON.
 
 Usage:
@@ -11,6 +11,7 @@ Usage:
 
 Endpoints:
     POST /detect          - Send an image, get back detections + repair info
+    POST /repair          - Send detections + transcript, get LLM-generated repair instructions
     POST /context         - Send speech transcript to update detection context
     GET  /health          - Health check
     GET  /classes         - List all fault classes
@@ -35,6 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from configs.config import load_config
 from utils.repair_kb import get_repair_info
 from utils.speech_context import SpeechContext
+from utils.llm_advisor import LLMAdvisor
 
 
 # --- Response Models ---
@@ -81,6 +83,21 @@ class ContextResponse(BaseModel):
     context_summary: str
 
 
+class RepairRequest(BaseModel):
+    detections: List[dict]
+    transcript: str = ""
+    device_description: str = ""
+
+
+class RepairResponse(BaseModel):
+    diagnosis: str
+    severity: str
+    tools: List[str]
+    steps: List[str]
+    warning: str
+    raw: str
+
+
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
@@ -106,16 +123,24 @@ app.add_middleware(
 model: YOLO = None
 config = None
 speech_ctx: SpeechContext = None
+llm_advisor: LLMAdvisor = None
 fault_classes: List[str] = []
 
 
 def init_model(model_path: str, config_path: str = None):
     """Load the YOLO model and config."""
-    global model, config, speech_ctx, fault_classes
+    global model, config, speech_ctx, llm_advisor, fault_classes
 
     config = load_config(config_path)
     fault_classes = config.fault_classes
     speech_ctx = SpeechContext(boost_factor=0.15, decay=0.85)
+
+    # Initialize LLM advisor (uses OPENAI_API_KEY env var)
+    if os.environ.get("OPENAI_API_KEY"):
+        llm_advisor = LLMAdvisor()
+        print("LLM advisor initialized (GPT)")
+    else:
+        print("Warning: OPENAI_API_KEY not set — /repair endpoint will be unavailable")
 
     if not os.path.exists(model_path):
         print(f"Warning: model not found at {model_path}")
@@ -152,7 +177,7 @@ async def detect(
     """
     Run fault detection on an uploaded image frame.
 
-    The Unity app should send camera frames here as JPEG/PNG.
+    The web app should send camera frames here as JPEG/PNG.
     Returns bounding boxes, fault labels, confidence scores,
     and repair instructions for each detection.
     """
@@ -235,12 +260,39 @@ async def detect(
     )
 
 
+@app.post("/repair", response_model=RepairResponse)
+async def repair(req: RepairRequest):
+    """
+    Generate LLM-powered repair instructions from detection results.
+
+    The web app calls this after /detect to get dynamic, context-aware
+    repair instructions from GPT based on the detected damage and user speech.
+    """
+    if llm_advisor is None:
+        return RepairResponse(
+            diagnosis="LLM advisor not available — set OPENAI_API_KEY env var",
+            severity="unknown",
+            tools=[],
+            steps=["Set the OPENAI_API_KEY environment variable and restart the server."],
+            warning="None",
+            raw="",
+        )
+
+    result = llm_advisor.get_repair_instructions(
+        detections=req.detections,
+        transcript=req.transcript,
+        device_description=req.device_description,
+    )
+
+    return RepairResponse(**result)
+
+
 @app.post("/context", response_model=ContextResponse)
 async def update_context(req: ContextRequest):
     """
     Update the speech context with a new transcript chunk.
 
-    The Unity app should send Whisper transcripts here so that
+    The web app should send Whisper transcripts here so that
     speech context can boost/suppress detection results.
     """
     if speech_ctx is None:
