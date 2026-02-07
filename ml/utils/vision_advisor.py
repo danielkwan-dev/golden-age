@@ -45,6 +45,20 @@ You MUST respond with valid JSON in this exact format (no markdown, no code fenc
 }"""
 
 
+CHAT_SYSTEM_PROMPT = """You are MIDAS, an AR-powered repair assistant helping users fix broken technology through a live camera feed and voice conversation.
+
+Rules:
+- Be extremely concise. Max 2 sentences per response.
+- When you identify damage, give ONE numbered step at a time. Do not list all steps upfront.
+- Reference specific parts visible in the image (e.g. "the cracked corner near the charging port", "the frayed section of the cable").
+- After the user completes a step, give the next step when they ask or show progress.
+- Format steps as: "Step N: [action]" so the user can track progress.
+- Warn about safety hazards inline (e.g. "Step 3: Disconnect the battery — careful, prying too hard can puncture it.").
+- If no device is visible, say so in one sentence and ask them to point the camera.
+- If no damage is visible, say so and ask the user to describe the issue or show another angle.
+- Do NOT use JSON. Respond in plain spoken English — the user will hear this read aloud."""
+
+
 class VisionAdvisor:
     def __init__(self, model: str = "gpt-4o", api_key: str = None):
         self.model = model
@@ -120,6 +134,56 @@ class VisionAdvisor:
                 "estimated_cost": "unknown",
                 "raw": str(e),
             }
+
+    def chat(
+        self,
+        messages: list[dict],
+        image_bytes: bytes | None = None,
+        mime_type: str = "image/jpeg",
+    ) -> str:
+        """
+        Multi-turn conversation with optional image attachment.
+
+        Args:
+            messages: List of {"role": "user"|"assistant", "content": "..."} dicts.
+            image_bytes: Optional image to attach to the latest user message.
+            mime_type: MIME type of the image.
+
+        Returns:
+            The assistant's reply as a plain text string.
+        """
+        openai_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+
+        for msg in messages:
+            role = "assistant" if msg["role"] == "assistant" else "user"
+            openai_messages.append({"role": role, "content": msg["content"]})
+
+        # If there's an image, attach it to the last user message
+        if image_bytes and openai_messages:
+            b64_image = base64.b64encode(image_bytes).decode("utf-8")
+            last = openai_messages[-1]
+            text_content = last["content"] if isinstance(last["content"], str) else ""
+            last["content"] = [
+                {"type": "text", "text": text_content or "Analyze this image."},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{b64_image}",
+                        "detail": "high",
+                    },
+                },
+            ]
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=openai_messages,
+                max_tokens=1500,
+                temperature=0.4,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"I couldn't process that request. Error: {str(e)}"
 
     def _parse_response(self, text: str) -> dict:
         """Parse the JSON response from GPT-4o."""

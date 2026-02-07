@@ -9,16 +9,15 @@ import SessionComplete from "./components/SessionComplete";
 import useCamera from "./hooks/useCamera";
 import useMicrophone from "./hooks/useMicrophone";
 import useRepairSession from "./hooks/useRepairSession";
-import useAROverlays from "./hooks/useAROverlays";
 import { captureFrame, fetchPreview } from "./api/midas";
 
 function App() {
   const camera = useCamera();
   const mic = useMicrophone();
   const session = useRepairSession();
-  const arAnnotations = useAROverlays(session.activeAnnotations);
   const [cameraToast, setCameraToast] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [detections, setDetections] = useState([]);
   const previewUrlRef = useRef(null);
 
   // Advance to 'ready' phase once camera is active
@@ -51,10 +50,11 @@ function App() {
     }
   }, [camera.status, session.phase]);
 
-  // OpenCV preview loop: capture frame every 2s during active session
+  // OpenCV preview + detection loop: every 2s during active session
   useEffect(() => {
     if (session.phase !== "active" || camera.status !== "active") {
       setPreviewUrl(null);
+      setDetections([]);
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
         previewUrlRef.current = null;
@@ -67,10 +67,11 @@ function App() {
       if (!videoEl || videoEl.readyState < 2) return;
       try {
         const blob = await captureFrame(videoEl);
-        const url = await fetchPreview(blob);
+        const { imageUrl, detections: newDetections } = await fetchPreview(blob);
         if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = url;
-        setPreviewUrl(url);
+        previewUrlRef.current = imageUrl;
+        setPreviewUrl(imageUrl);
+        setDetections(newDetections);
       } catch {
         // Preview server not running — ignore silently
       }
@@ -83,6 +84,7 @@ function App() {
         previewUrlRef.current = null;
       }
       setPreviewUrl(null);
+      setDetections([]);
     };
   }, [session.phase, camera.status]);
 
@@ -91,9 +93,9 @@ function App() {
       {/* Layer 1: Camera feed (z-0) */}
       <CameraFeed videoRef={camera.videoRef} isFrontFacing={camera.isFrontFacing} />
 
-      {/* Layer 2: AR overlay (z-10) */}
+      {/* Layer 2: AR overlay (z-10) — live detections from OpenCV */}
       <div className="absolute inset-0 z-10 pointer-events-none">
-        <AROverlayLayer annotations={arAnnotations} />
+        <AROverlayLayer annotations={detections} />
       </div>
 
       {/* Layer 2.5: OpenCV enhanced preview thumbnail (z-15) */}
