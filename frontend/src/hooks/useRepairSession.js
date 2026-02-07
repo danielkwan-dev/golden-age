@@ -79,11 +79,11 @@ export default function useRepairSession() {
    * Shared core: capture frame, send to chat, stream response, play TTS.
    * Called by both scan() and scanPhoto().
    */
-  const sendToChat = async (videoEl, userText) => {
+  const sendToChat = async (videoEl, userText, isFrontFacing = false) => {
     setStreamingText("Scanning device...");
     const blob = await captureFrame(videoEl);
     const messages = buildMessages(transcript, userText);
-    const aiText = await chatWithMidas(messages, blob);
+    const aiText = await chatWithMidas(messages, blob, isFrontFacing);
 
     // Stream text + fetch TTS in parallel
     setStreamingText("");
@@ -125,7 +125,7 @@ export default function useRepairSession() {
    * Hold-to-talk flow: transcribe audio via Whisper, then send to chat.
    */
   const scan = useCallback(
-    async (videoEl, audioBlob = null) => {
+    async (videoEl, audioBlob = null, isFrontFacing = false) => {
       if (scanning || !videoEl) return;
 
       setScanning(true);
@@ -151,7 +151,7 @@ export default function useRepairSession() {
       }
 
       try {
-        await sendToChat(videoEl, spokenText);
+        await sendToChat(videoEl, spokenText, isFrontFacing);
       } catch {
         setStreamingText("");
         setTranscript((prev) => [
@@ -174,7 +174,7 @@ export default function useRepairSession() {
    * Scan button flow: capture frame and send to chat without voice input.
    */
   const scanPhoto = useCallback(
-    async (videoEl) => {
+    async (videoEl, isFrontFacing = false) => {
       if (scanning || !videoEl) return;
 
       setScanning(true);
@@ -182,7 +182,7 @@ export default function useRepairSession() {
       cancelRef.current = false;
 
       try {
-        await sendToChat(videoEl, "");
+        await sendToChat(videoEl, "", isFrontFacing);
       } catch {
         setStreamingText("");
         setTranscript((prev) => [

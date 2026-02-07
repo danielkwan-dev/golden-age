@@ -108,7 +108,7 @@ def init_server():
         print("ERROR: OPENAI_API_KEY not set — server cannot analyze images")
 
 
-def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool, any]:
+def preprocess_frame(image_bytes: bytes, should_flip: bool = False) -> tuple[bytes, int, int, bool, any]:
     """
     OpenCV preprocessing pipeline for camera frames.
 
@@ -121,8 +121,9 @@ def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool, any]:
     if frame is None:
         return image_bytes, 0, 0, False, None
 
-    # Mirror horizontally (front-facing camera inversion)
-    frame = cv2.flip(frame, 1)
+    # Mirror horizontally only if requested (usually for front-facing cameras)
+    if should_flip:
+        frame = cv2.flip(frame, 1)
 
     h, w = frame.shape[:2]
 
@@ -213,7 +214,10 @@ def health():
 
 
 @app.post("/preview")
-async def preview(image: UploadFile = File(...)):
+async def preview(
+    image: UploadFile = File(...),
+    flip: bool = Form(default=False),
+):
     """
     OpenCV-only preprocessing + object detection — no GPT-4o call, no cost.
 
@@ -221,7 +225,7 @@ async def preview(image: UploadFile = File(...)):
     Called every ~2 seconds by the frontend for live AR overlay.
     """
     raw_bytes = await image.read()
-    processed_bytes, w, h, was_preprocessed, frame = preprocess_frame(raw_bytes)
+    processed_bytes, w, h, was_preprocessed, frame = preprocess_frame(raw_bytes, should_flip=flip)
     detections = detect_objects(frame, w, h) if frame is not None else []
     b64_image = base64.b64encode(processed_bytes).decode("utf-8")
 
@@ -237,6 +241,7 @@ async def preview(image: UploadFile = File(...)):
 async def analyze(
     image: UploadFile = File(...),
     transcript: str = Form(default=""),
+    flip: bool = Form(default=False),
 ):
     """
     Analyze a device image for damage and generate repair instructions.
@@ -266,7 +271,7 @@ async def analyze(
     raw_bytes = await image.read()
 
     # OpenCV preprocessing (enhance contrast, sharpen, resize)
-    processed_bytes, w, h, was_preprocessed, _ = preprocess_frame(raw_bytes)
+    processed_bytes, w, h, was_preprocessed, _ = preprocess_frame(raw_bytes, should_flip=flip)
 
     # Determine MIME type
     mime_type = image.content_type or "image/jpeg"
@@ -302,6 +307,7 @@ async def analyze(
 async def chat(
     image: Optional[UploadFile] = File(default=None),
     messages: str = Form(default="[]"),
+    flip: bool = Form(default=False),
 ):
     """
     Multi-turn conversational endpoint.
@@ -327,7 +333,7 @@ async def chat(
     processed_bytes = None
     if image is not None:
         raw_bytes = await image.read()
-        processed_bytes, _, _, _, _ = preprocess_frame(raw_bytes)
+        processed_bytes, _, _, _, _ = preprocess_frame(raw_bytes, should_flip=flip)
 
     reply = vision_advisor.chat(
         messages=msg_list,

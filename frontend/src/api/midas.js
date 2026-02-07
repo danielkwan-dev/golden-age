@@ -17,9 +17,10 @@ export async function captureFrame(videoEl) {
  * Send a frame to the OpenCV preview + detection endpoint (free, no GPT-4o).
  * Returns { imageUrl, detections } where detections is an array of AR markers.
  */
-export async function fetchPreview(imageBlob) {
+export async function fetchPreview(imageBlob, flip = false) {
   const form = new FormData();
   form.append("image", imageBlob, "frame.jpg");
+  form.append("flip", flip);
   const res = await fetch(`${API_BASE}/preview`, { method: "POST", body: form });
   if (!res.ok) throw new Error("Preview failed");
   const data = await res.json();
@@ -38,10 +39,11 @@ export async function fetchPreview(imageBlob) {
  * Send a frame + transcript to GPT-4o Vision for full analysis.
  * Returns the diagnosis JSON.
  */
-export async function analyzeFrame(imageBlob, transcript = "") {
+export async function analyzeFrame(imageBlob, transcript = "", flip = false) {
   const form = new FormData();
   form.append("image", imageBlob, "frame.jpg");
   form.append("transcript", transcript);
+  form.append("flip", flip);
   const res = await fetch(`${API_BASE}/analyze`, { method: "POST", body: form });
   if (!res.ok) throw new Error("Analysis failed");
   return res.json();
@@ -54,9 +56,10 @@ export async function analyzeFrame(imageBlob, transcript = "") {
  * @param {Blob|null} imageBlob - Optional camera frame to include
  * @returns {Promise<string>} The AI's reply text
  */
-export async function chatWithMidas(messages, imageBlob = null) {
+export async function chatWithMidas(messages, imageBlob = null, flip = false) {
   const form = new FormData();
   form.append("messages", JSON.stringify(messages));
+  form.append("flip", flip);
   if (imageBlob) {
     form.append("image", imageBlob, "frame.jpg");
   }

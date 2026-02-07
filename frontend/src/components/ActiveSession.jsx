@@ -6,6 +6,7 @@ export default function ActiveSession({
   session,
   mic,
   videoRef,
+  isFrontFacing,
   torchSupported,
   torchOn,
   onToggleTorch,
@@ -20,7 +21,7 @@ export default function ActiveSession({
     e.preventDefault();
     if (!mic.listening) return;
     const audioBlob = await mic.stopListening();
-    session.scan(videoRef.current, audioBlob);
+    session.scan(videoRef.current, audioBlob, isFrontFacing);
   };
 
   return (

@@ -70,7 +70,7 @@ function App() {
         if (videoEl && videoEl.readyState >= 2) {
           try {
             const blob = await captureFrame(videoEl);
-            const { imageUrl, detections: newDetections } = await fetchPreview(blob);
+            const { imageUrl, detections: newDetections } = await fetchPreview(blob, camera.isFrontFacing);
             if (cancelled) { URL.revokeObjectURL(imageUrl); break; }
             if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
             previewUrlRef.current = imageUrl;
@@ -144,6 +144,7 @@ function App() {
               session={session}
               mic={mic}
               videoRef={camera.videoRef}
+              isFrontFacing={camera.isFrontFacing}
               torchSupported={camera.torchSupported}
               torchOn={camera.torchOn}
               onToggleTorch={camera.toggleTorch}
