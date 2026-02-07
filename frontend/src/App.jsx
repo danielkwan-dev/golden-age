@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraFeed from "./components/CameraFeed";
 import PermissionGate from "./components/PermissionGate";
@@ -10,6 +10,7 @@ import useCamera from "./hooks/useCamera";
 import useMicrophone from "./hooks/useMicrophone";
 import useRepairSession from "./hooks/useRepairSession";
 import useAROverlays from "./hooks/useAROverlays";
+import { captureFrame, fetchPreview } from "./api/midas";
 
 function App() {
   const camera = useCamera();
@@ -17,6 +18,8 @@ function App() {
   const session = useRepairSession();
   const arAnnotations = useAROverlays(session.activeAnnotations);
   const [cameraToast, setCameraToast] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const previewUrlRef = useRef(null);
 
   // Advance to 'ready' phase once camera is active
   useEffect(() => {
@@ -48,6 +51,41 @@ function App() {
     }
   }, [camera.status, session.phase]);
 
+  // OpenCV preview loop: capture frame every 2s during active session
+  useEffect(() => {
+    if (session.phase !== "active" || camera.status !== "active") {
+      setPreviewUrl(null);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const videoEl = camera.videoRef.current;
+      if (!videoEl || videoEl.readyState < 2) return;
+      try {
+        const blob = await captureFrame(videoEl);
+        const url = await fetchPreview(blob);
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+      } catch {
+        // Preview server not running — ignore silently
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(interval);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+      setPreviewUrl(null);
+    };
+  }, [session.phase, camera.status]);
+
   return (
     <div className="relative w-screen h-[100dvh] overflow-hidden bg-black">
       {/* Layer 1: Camera feed (z-0) */}
@@ -57,6 +95,22 @@ function App() {
       <div className="absolute inset-0 z-10 pointer-events-none">
         <AROverlayLayer annotations={arAnnotations} />
       </div>
+
+      {/* Layer 2.5: OpenCV enhanced preview thumbnail (z-15) */}
+      {previewUrl && session.phase === "active" && (
+        <div className="absolute top-[max(4rem,calc(env(safe-area-inset-top)+3rem))] right-3 z-[15] pointer-events-none">
+          <div className="glass border border-gold/20 rounded-lg overflow-hidden">
+            <p className="text-[8px] text-gold/60 text-center py-0.5 bg-black/40">
+              OpenCV Enhanced
+            </p>
+            <img
+              src={previewUrl}
+              alt="Enhanced preview"
+              className="w-24 h-auto object-cover"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Layer 3: UI overlays (z-20) */}
       <div className="absolute inset-0 z-20">
@@ -76,6 +130,7 @@ function App() {
               key="active"
               session={session}
               mic={mic}
+              videoRef={camera.videoRef}
               torchSupported={camera.torchSupported}
               torchOn={camera.torchOn}
               onToggleTorch={camera.toggleTorch}
