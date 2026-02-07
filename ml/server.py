@@ -10,7 +10,8 @@ Usage:
     python server.py --port 8080        # custom port
 
 Endpoints:
-    POST /analyze         - Send image + transcript, get diagnosis + repair steps
+    POST /preview         - OpenCV-enhanced frame (call every 2s for live feed, free)
+    POST /analyze         - Send image + transcript, get diagnosis + repair steps (GPT-4o, costs $)
     GET  /health          - Health check
 """
 
@@ -24,6 +25,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -146,6 +148,24 @@ def health():
     return HealthResponse(
         status="ok" if vision_advisor is not None else "no_api_key",
         vision_ready=vision_advisor is not None,
+    )
+
+
+@app.post("/preview")
+async def preview(image: UploadFile = File(...)):
+    """
+    OpenCV-only preprocessing — no GPT-4o call, no cost.
+
+    Returns the enhanced JPEG image. The frontend can call this every ~2 seconds
+    to show a live enhanced camera feed before the user triggers a full analysis.
+    """
+    raw_bytes = await image.read()
+    processed_bytes, w, h, was_preprocessed = preprocess_frame(raw_bytes)
+
+    return Response(
+        content=processed_bytes,
+        media_type="image/jpeg",
+        headers={"X-Frame-Width": str(w), "X-Frame-Height": str(h)},
     )
 
 
