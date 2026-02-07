@@ -6,7 +6,7 @@ Authors: Daniel Kwan, Diego Gonzalez, Ryan Li, Siddharth Tiwari
 
 **Touch Broken Tech. Restore to Gold.**
 
-MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. **Optimized for mobile**, simply point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas is bringing back the Golden Age of hands-on repair using modern AI.
+MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. **Optimized for mobile**, simply point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas uses AI to bring neglected devices to their former "Golden Age".
 
 ---
 
