@@ -2,13 +2,37 @@ const mockDiagnosisResponse = {
   device: "iPhone 13",
   problem: "Cracked Screen",
   difficulty: "Moderate",
+  confidence: 92,
   estimatedTime: "45–60 minutes",
-  tools: [
-    "Pentalobe screwdriver",
-    "Suction cup",
-    "Spudger",
-    "Replacement screen assembly",
-    "Heat gun or hair dryer",
+  materials: [
+    {
+      name: "Replacement Screen Assembly",
+      cost: "$45–$65",
+      purchaseUrl: "https://www.ifixit.com/products/iphone-13-screen",
+    },
+    {
+      name: "Pentalobe Screwdriver",
+      cost: "$6",
+      purchaseUrl: "https://www.ifixit.com/products/p2-pentalobe-screwdriver-iphone",
+    },
+    {
+      name: "Suction Cup",
+      cost: "$5",
+    },
+    {
+      name: "Spudger",
+      cost: "$4",
+      purchaseUrl: "https://www.ifixit.com/products/spudger",
+    },
+    {
+      name: "Heat Gun or Hair Dryer",
+      cost: "$15–$30",
+    },
+    {
+      name: "Adhesive Strips",
+      cost: "$8",
+      purchaseUrl: "https://www.ifixit.com/products/iphone-13-display-adhesive",
+    },
   ],
   steps: [
     {

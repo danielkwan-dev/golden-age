@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "./components/Hero";
 import UploadSection from "./components/UploadSection";
+import DiagnosisCard from "./components/DiagnosisCard";
+import MaterialsList from "./components/MaterialsList";
 import useDiagnosis from "./hooks/useDiagnosis";
 
 function App() {
@@ -50,13 +52,10 @@ function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="max-w-4xl mx-auto px-4 pb-20"
+              className="max-w-4xl mx-auto px-4 pb-20 space-y-10"
             >
-              <div className="rounded-xl border border-charcoal bg-black-soft p-8 text-center">
-                <p className="text-gold-muted text-lg">
-                  Results will appear here
-                </p>
-              </div>
+              <DiagnosisCard data={data} />
+              <MaterialsList materials={data.materials} />
             </motion.div>
           )}
         </AnimatePresence>
