@@ -7,7 +7,10 @@ export default function CameraFeed({ videoRef, isFrontFacing }) {
         playsInline
         muted
         className="w-full h-full object-cover"
-        style={isFrontFacing ? { transform: "scaleX(-1)" } : undefined}
+        style={{
+          willChange: "transform",
+          ...(isFrontFacing ? { transform: "scaleX(-1)" } : {}),
+        }}
       />
     </div>
   );

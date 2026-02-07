@@ -24,6 +24,11 @@ export default function useCamera() {
       setTorchSupported(capabilities.torch === true);
     }
 
+    // Listen for track ending (camera disconnect / lock screen)
+    videoTrack?.addEventListener("ended", () => {
+      setStatus("error");
+    });
+
     setStatus("active");
   }, []);
 

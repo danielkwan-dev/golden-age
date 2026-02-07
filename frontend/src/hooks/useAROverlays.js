@@ -1,16 +1,17 @@
-// useAROverlays — manages AR marker positions/animations
-import { useState, useCallback } from "react";
+import { useMemo } from "react";
+import { arAnnotations } from "../data/mockARAnnotations";
 
-export default function useAROverlays() {
-  const [activeAnnotations, setActiveAnnotations] = useState([]);
+export default function useAROverlays(activeIds) {
+  const resolved = useMemo(() => {
+    if (!activeIds || activeIds.length === 0) return [];
+    return activeIds
+      .map((id) => {
+        const data = arAnnotations[id];
+        if (!data) return null;
+        return { id, ...data };
+      })
+      .filter(Boolean);
+  }, [activeIds]);
 
-  const showAnnotations = useCallback((ids) => {
-    setActiveAnnotations(ids);
-  }, []);
-
-  const clearAnnotations = useCallback(() => {
-    setActiveAnnotations([]);
-  }, []);
-
-  return { activeAnnotations, showAnnotations, clearAnnotations };
+  return resolved;
 }

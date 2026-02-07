@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import CameraFeed from "./components/CameraFeed";
 import PermissionGate from "./components/PermissionGate";
 import StartScreen from "./components/StartScreen";
@@ -15,7 +15,8 @@ function App() {
   const camera = useCamera();
   const mic = useMicrophone();
   const session = useRepairSession();
-  const ar = useAROverlays();
+  const arAnnotations = useAROverlays(session.activeAnnotations);
+  const [cameraToast, setCameraToast] = useState(false);
 
   // Advance to 'ready' phase once camera is active
   useEffect(() => {
@@ -38,6 +39,15 @@ function App() {
     }
   }, [session.phase, mic.stopMic]);
 
+  // Camera disconnect toast
+  useEffect(() => {
+    if (camera.status === "error" && session.phase === "active") {
+      setCameraToast(true);
+      const t = setTimeout(() => setCameraToast(false), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [camera.status, session.phase]);
+
   return (
     <div className="relative w-screen h-[100dvh] overflow-hidden bg-black">
       {/* Layer 1: Camera feed (z-0) */}
@@ -45,7 +55,7 @@ function App() {
 
       {/* Layer 2: AR overlay (z-10) */}
       <div className="absolute inset-0 z-10 pointer-events-none">
-        <AROverlayLayer annotations={ar.activeAnnotations} />
+        <AROverlayLayer annotations={arAnnotations} />
       </div>
 
       {/* Layer 3: UI overlays (z-20) */}
@@ -76,6 +86,20 @@ function App() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Camera disconnect toast */}
+      <AnimatePresence>
+        {cameraToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-[max(1rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-50 glass border border-danger/30 rounded-full px-5 py-2.5"
+          >
+            <p className="text-danger text-xs font-medium">Camera disconnected</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

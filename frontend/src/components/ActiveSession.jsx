@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import StepIndicator from "./StepIndicator";
+import TranscriptPanel from "./TranscriptPanel";
+import VoiceOrb from "./VoiceOrb";
 import ControlBar from "./ControlBar";
 import { mockConversation } from "../data/mockConversation";
 
@@ -10,7 +12,6 @@ export default function ActiveSession({
   torchOn,
   onToggleTorch,
 }) {
-  const totalSteps = mockConversation.length;
   const step = mockConversation[session.currentStep] || mockConversation[0];
 
   return (
@@ -25,18 +26,25 @@ export default function ActiveSession({
       <div className="flex justify-center pt-[max(1rem,env(safe-area-inset-top))] px-4 pointer-events-auto">
         <StepIndicator
           currentStep={step.step}
-          totalSteps={totalSteps}
+          totalSteps={session.totalSteps}
           title={step.title}
         />
       </div>
 
-      {/* Center: VoiceOrb placeholder */}
+      {/* Center: VoiceOrb */}
       <div className="flex-1 flex items-center justify-center">
-        {/* VoiceOrb will go here */}
+        <VoiceOrb
+          aiSpeaking={session.aiSpeaking}
+          sessionStatus={session.sessionStatus}
+        />
       </div>
 
-      {/* Bottom-left: TranscriptPanel placeholder */}
-      {/* TranscriptPanel will go here */}
+      {/* Bottom-left: TranscriptPanel */}
+      <TranscriptPanel
+        transcript={session.transcript}
+        streamingText={session.streamingText}
+        aiSpeaking={session.aiSpeaking}
+      />
 
       {/* Bottom: Control bar */}
       <div className="pointer-events-auto">
