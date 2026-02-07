@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// If VITE_API_URL is set (e.g. to http://localhost:8000), use it.
+// Otherwise, use empty string to make requests relative to the current origin (Single Server Mode).
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 /**
  * Capture a JPEG frame from a <video> element.
