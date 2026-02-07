@@ -254,6 +254,45 @@ export default function useRepairSession() {
     [scanning, transcript]
   );
 
+  /**
+   * Send a typed text message to the LLM (with current camera frame).
+   */
+  const sendText = useCallback(
+    async (videoEl, text) => {
+      if (scanning || !text.trim()) return;
+
+      const vid = videoEl || videoElRef.current;
+      if (!vid) return;
+
+      setTranscript((prev) => [
+        ...prev,
+        { speaker: "user", text: text.trim(), timestamp: new Date() },
+      ]);
+
+      setScanning(true);
+      setAiSpeaking(true);
+      cancelRef.current = false;
+
+      try {
+        await sendToChat(vid, text.trim());
+      } catch {
+        setStreamingText("");
+        setTranscript((prev) => [
+          ...prev,
+          {
+            speaker: "ai",
+            text: "I couldn't process that. Make sure the server is running and try again.",
+            timestamp: new Date(),
+          },
+        ]);
+        setAiSpeaking(false);
+      } finally {
+        setScanning(false);
+      }
+    },
+    [scanning, transcript]
+  );
+
   const grantPermissions = useCallback(() => setPhase("ready"), []);
 
   const startSession = useCallback(() => {
@@ -314,5 +353,6 @@ export default function useRepairSession() {
     scan,
     scanPhoto,
     completeStep,
+    sendText,
   };
 }

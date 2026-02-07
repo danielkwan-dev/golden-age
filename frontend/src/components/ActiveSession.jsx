@@ -136,6 +136,8 @@ export default function ActiveSession({
         transcript={session.transcript}
         streamingText={session.streamingText}
         aiSpeaking={session.aiSpeaking}
+        onSendText={(text) => session.sendText(videoRef.current, text)}
+        disabled={session.scanning || session.aiSpeaking}
       />
 
       {/* Bottom: Control bar */}
