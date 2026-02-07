@@ -109,7 +109,11 @@ export default function useRepairSession() {
             URL.revokeObjectURL(audioUrl);
             audioRef.current = null;
           };
-          audio.play();
+          audio.play().catch(() => {
+            setAiSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            audioRef.current = null;
+          });
         } catch {
           setAiSpeaking(false);
         }

@@ -31,8 +31,18 @@ export default function useMicrophone() {
   }, []);
 
   /** Start recording audio via MediaRecorder (call on button press). */
-  const startListening = useCallback(() => {
-    if (!streamRef.current) return;
+  const startListening = useCallback(async () => {
+    // Re-acquire stream if tracks are ended (common on mobile after stop)
+    const tracks = streamRef.current?.getAudioTracks() || [];
+    const alive = tracks.some((t) => t.readyState === "live");
+    if (!streamRef.current || !alive) {
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = audioStream;
+      } catch {
+        return;
+      }
+    }
 
     chunksRef.current = [];
     setLiveTranscript("Listening...");
