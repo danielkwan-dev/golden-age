@@ -18,6 +18,7 @@ Endpoints:
 import os
 import sys
 import io
+import base64
 import argparse
 from typing import List, Optional
 
@@ -98,24 +99,18 @@ def init_server():
         print("ERROR: OPENAI_API_KEY not set — server cannot analyze images")
 
 
-def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool]:
+def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool, any]:
     """
     OpenCV preprocessing pipeline for camera frames.
 
-    Enhances the image before sending to GPT-4o for better damage detection:
-    - Resize large images to save API tokens
-    - Auto white-balance and contrast enhancement (CLAHE)
-    - Sharpen to make cracks/scratches more visible
-
     Returns:
-        (processed_jpeg_bytes, width, height, was_preprocessed)
+        (processed_jpeg_bytes, width, height, was_preprocessed, frame_numpy)
     """
-    # Decode image
     nparr = np.frombuffer(image_bytes, np.uint8)
     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     if frame is None:
-        return image_bytes, 0, 0, False
+        return image_bytes, 0, 0, False, None
 
     h, w = frame.shape[:2]
 
@@ -126,20 +121,15 @@ def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool]:
         frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         h, w = frame.shape[:2]
 
-    # Convert to LAB color space for contrast enhancement
+    # CLAHE contrast enhancement
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l_channel, a_channel, b_channel = cv2.split(lab)
-
-    # Apply CLAHE (adaptive histogram equalization) to the L channel
-    # This enhances contrast locally — makes cracks and scratches more visible
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     l_enhanced = clahe.apply(l_channel)
-
-    # Merge back and convert to BGR
     enhanced = cv2.merge([l_enhanced, a_channel, b_channel])
     frame = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
 
-    # Light sharpen to make damage edges clearer
+    # Light sharpen
     kernel = np.array([
         [0, -0.5, 0],
         [-0.5, 3, -0.5],
@@ -147,10 +137,66 @@ def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool]:
     ])
     frame = cv2.filter2D(frame, -1, kernel)
 
-    # Encode back to JPEG
     _, jpeg_bytes = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
 
-    return jpeg_bytes.tobytes(), w, h, True
+    return jpeg_bytes.tobytes(), w, h, True, frame
+
+
+def detect_regions(frame, frame_w: int, frame_h: int, max_detections: int = 5) -> list:
+    """
+    Detect regions of interest using Canny edge detection + contours.
+    Returns bounding boxes as CSS percentage positions for AR overlay.
+    """
+    if frame is None or frame_w == 0 or frame_h == 0:
+        return []
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+
+    # Dilate to close gaps in edges
+    edges = cv2.dilate(edges, None, iterations=2)
+
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Filter by area and sort by size (largest first)
+    min_area = frame_w * frame_h * 0.005  # at least 0.5% of frame
+    max_area = frame_w * frame_h * 0.8    # no bigger than 80% of frame
+    valid = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        if min_area < area < max_area:
+            valid.append((area, c))
+
+    valid.sort(key=lambda x: x[0], reverse=True)
+    valid = valid[:max_detections]
+
+    detections = []
+    for i, (_, contour) in enumerate(valid):
+        x, y, bw, bh = cv2.boundingRect(contour)
+        # Convert to CSS percentages, bucket to nearest 5% for stable IDs
+        left_pct = round(x / frame_w * 100)
+        top_pct = round(y / frame_h * 100)
+        w_pct = round(bw / frame_w * 100)
+        h_pct = round(bh / frame_h * 100)
+
+        # Stable ID based on position bucket (nearest 5%)
+        id_key = f"det-{left_pct // 5}-{top_pct // 5}"
+
+        detections.append({
+            "id": id_key,
+            "type": "rectangle",
+            "label": "Region of interest",
+            "color": "gold",
+            "position": {
+                "top": f"{top_pct}%",
+                "left": f"{left_pct}%",
+                "width": f"{w_pct}%",
+                "height": f"{h_pct}%",
+            },
+        })
+
+    return detections
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -164,19 +210,22 @@ def health():
 @app.post("/preview")
 async def preview(image: UploadFile = File(...)):
     """
-    OpenCV-only preprocessing — no GPT-4o call, no cost.
+    OpenCV-only preprocessing + object detection — no GPT-4o call, no cost.
 
-    Returns the enhanced JPEG image. The frontend can call this every ~2 seconds
-    to show a live enhanced camera feed before the user triggers a full analysis.
+    Returns JSON with base64 enhanced image and detected bounding boxes.
+    Called every ~2 seconds by the frontend for live AR overlay.
     """
     raw_bytes = await image.read()
-    processed_bytes, w, h, was_preprocessed = preprocess_frame(raw_bytes)
+    processed_bytes, w, h, was_preprocessed, frame = preprocess_frame(raw_bytes)
+    detections = detect_regions(frame, w, h) if frame is not None else []
+    b64_image = base64.b64encode(processed_bytes).decode("utf-8")
 
-    return Response(
-        content=processed_bytes,
-        media_type="image/jpeg",
-        headers={"X-Frame-Width": str(w), "X-Frame-Height": str(h)},
-    )
+    return {
+        "image": b64_image,
+        "detections": detections,
+        "frame_width": w,
+        "frame_height": h,
+    }
 
 
 @app.post("/analyze", response_model=AnalysisResponse)
@@ -212,7 +261,7 @@ async def analyze(
     raw_bytes = await image.read()
 
     # OpenCV preprocessing (enhance contrast, sharpen, resize)
-    processed_bytes, w, h, was_preprocessed = preprocess_frame(raw_bytes)
+    processed_bytes, w, h, was_preprocessed, _ = preprocess_frame(raw_bytes)
 
     # Determine MIME type
     mime_type = image.content_type or "image/jpeg"
@@ -273,7 +322,7 @@ async def chat(
     processed_bytes = None
     if image is not None:
         raw_bytes = await image.read()
-        processed_bytes, _, _, _ = preprocess_frame(raw_bytes)
+        processed_bytes, _, _, _, _ = preprocess_frame(raw_bytes)
 
     reply = vision_advisor.chat(
         messages=msg_list,
