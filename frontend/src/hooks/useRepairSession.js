@@ -44,9 +44,10 @@ export default function useRepairSession() {
     const lines = text.split("\n");
     const steps = [];
     for (const line of lines) {
-      const match = line.match(/^\s*(\d+)[.)]\s+(.+)/);
+      // Match: "1. ...", "1) ...", "Step 1: ...", "Step 1. ...", "Step 1 - ..."
+      const match = line.match(/^\s*(?:step\s+)?\d+\s*[.):\-]\s*(.+)/i);
       if (match) {
-        steps.push(match[2].trim());
+        steps.push(match[1].trim());
       }
     }
     if (steps.length > 0) {
