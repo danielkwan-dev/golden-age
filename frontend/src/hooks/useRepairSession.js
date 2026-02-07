@@ -1,21 +1,17 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { mockConversation } from "../data/mockConversation";
+import { useState, useCallback, useRef } from "react";
+import { captureFrame, analyzeFrame } from "../api/midas";
 
 export default function useRepairSession() {
   const [phase, setPhase] = useState("permissions"); // permissions | ready | active | complete
-  const [currentStep, setCurrentStep] = useState(0);
-  const [currentExchange, setCurrentExchange] = useState(0);
   const [transcript, setTranscript] = useState([]);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [diagnosis, setDiagnosis] = useState(null);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
-  const [sessionStatus, setSessionStatus] = useState("active");
 
-  const playingRef = useRef(false);
   const cancelRef = useRef(false);
   const timeoutRef = useRef(null);
-
-  const totalSteps = mockConversation.length;
 
   const sleep = (ms) =>
     new Promise((resolve) => {
@@ -29,94 +25,122 @@ export default function useRepairSession() {
       if (cancelRef.current) return;
       accumulated += (i === 0 ? "" : " ") + words[i];
       setStreamingText(accumulated);
-      // ~80-120ms per word for natural speech pacing
-      await sleep(80 + Math.random() * 40);
+      await sleep(40 + Math.random() * 25);
     }
   };
 
-  const playConversation = useCallback(async () => {
-    if (playingRef.current) return;
-    playingRef.current = true;
-    cancelRef.current = false;
+  /**
+   * Build a context string from conversation history so the LLM
+   * knows what was discussed previously.
+   */
+  const buildContext = (messages, newUserText) => {
+    const lines = [];
+    for (const msg of messages) {
+      const prefix = msg.speaker === "user" ? "User" : "MIDAS";
+      lines.push(`${prefix}: ${msg.text}`);
+    }
+    if (newUserText.trim()) {
+      lines.push(`User: ${newUserText.trim()}`);
+    }
+    return lines.join("\n");
+  };
 
-    for (let s = 0; s < mockConversation.length; s++) {
-      if (cancelRef.current) break;
-      const step = mockConversation[s];
-      setCurrentStep(s);
+  /**
+   * Capture a frame + send to GPT-4o with full conversation context.
+   * videoEl: the <video> DOM element
+   * spokenText: what the user just said (from Web Speech API)
+   */
+  const scan = useCallback(
+    async (videoEl, spokenText = "") => {
+      if (scanning || !videoEl) return;
 
-      for (let e = 0; e < step.exchanges.length; e++) {
-        if (cancelRef.current) break;
-        const exchange = step.exchanges[e];
-        setCurrentExchange(e);
+      setScanning(true);
+      setAiSpeaking(true);
+      setStreamingText("Scanning device...");
+      cancelRef.current = false;
 
-        if (exchange.speaker === "ai") {
-          // Set AR annotations for this AI message
-          setActiveAnnotations(exchange.arAnnotations || []);
-          setAiSpeaking(true);
-          setStreamingText("");
+      // Add user's spoken text to transcript
+      if (spokenText.trim()) {
+        setTranscript((prev) => [
+          ...prev,
+          { speaker: "user", text: spokenText.trim(), timestamp: new Date() },
+        ]);
+      }
 
-          // Stream word by word
-          await streamWords(exchange.text);
-          if (cancelRef.current) break;
+      try {
+        const blob = await captureFrame(videoEl);
 
-          // Finalize: add to transcript, clear streaming
-          setTranscript((prev) => [
-            ...prev,
-            { speaker: "ai", text: exchange.text, timestamp: new Date() },
-          ]);
-          setStreamingText("");
-          setAiSpeaking(false);
+        // Build full conversation context for the LLM
+        const context = buildContext(transcript, spokenText);
 
-          // Pause between exchanges
-          await sleep(1200 + Math.random() * 800);
+        const result = await analyzeFrame(blob, context);
+        setDiagnosis(result);
+
+        // Build readable AI response
+        const lines = [];
+        lines.push(`I can see a ${result.device}.`);
+
+        if (result.damage_detected) {
+          lines.push(result.damage_description);
+          lines.push("");
+          lines.push("Here's how to fix it:");
+          result.steps.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
+
+          if (result.warning && result.warning !== "None") {
+            lines.push("");
+            lines.push(`Warning: ${result.warning}`);
+          }
+          if (result.tools?.length > 0) {
+            lines.push("");
+            lines.push(`Tools needed: ${result.tools.join(", ")}`);
+          }
         } else {
-          // User message: pause to simulate user talking, then appear
-          setAiSpeaking(false);
-          await sleep(3000 + Math.random() * 2000);
-          if (cancelRef.current) break;
+          lines.push(
+            "I don't see any visible damage. Try describing the issue or adjusting the camera angle."
+          );
+        }
 
+        const aiText = lines.join("\n");
+
+        // Stream the response word by word
+        setStreamingText("");
+        await streamWords(aiText);
+
+        if (!cancelRef.current) {
           setTranscript((prev) => [
             ...prev,
-            { speaker: "user", text: exchange.text, timestamp: new Date() },
+            { speaker: "ai", text: aiText, timestamp: new Date() },
           ]);
-
-          // Brief pause after user speaks
-          await sleep(1000 + Math.random() * 500);
+          setStreamingText("");
+          setAiSpeaking(false);
         }
+      } catch (err) {
+        setStreamingText("");
+        setTranscript((prev) => [
+          ...prev,
+          {
+            speaker: "ai",
+            text: "I couldn't analyze the image. Make sure the server is running and try again.",
+            timestamp: new Date(),
+          },
+        ]);
+        setAiSpeaking(false);
+      } finally {
+        setScanning(false);
       }
-
-      // Pause between steps
-      if (s < mockConversation.length - 1 && !cancelRef.current) {
-        setActiveAnnotations([]);
-        await sleep(2000);
-      }
-    }
-
-    if (!cancelRef.current) {
-      setActiveAnnotations([]);
-      setSessionStatus("complete");
-      setPhase("complete");
-    }
-    playingRef.current = false;
-  }, []);
-
-  // Start conversation when phase becomes active
-  useEffect(() => {
-    if (phase === "active") {
-      playConversation();
-    }
-  }, [phase, playConversation]);
+    },
+    [scanning, transcript]
+  );
 
   const grantPermissions = useCallback(() => setPhase("ready"), []);
 
   const startSession = useCallback(() => {
     setTranscript([]);
-    setCurrentStep(0);
-    setCurrentExchange(0);
+    setDiagnosis(null);
     setStreamingText("");
     setAiSpeaking(false);
+    setScanning(false);
     setActiveAnnotations([]);
-    setSessionStatus("active");
     cancelRef.current = false;
     setPhase("active");
   }, []);
@@ -124,9 +148,9 @@ export default function useRepairSession() {
   const completeSession = useCallback(() => {
     cancelRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    playingRef.current = false;
     setAiSpeaking(false);
     setStreamingText("");
+    setScanning(false);
     setActiveAnnotations([]);
     setPhase("complete");
   }, []);
@@ -134,30 +158,31 @@ export default function useRepairSession() {
   const resetSession = useCallback(() => {
     cancelRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    playingRef.current = false;
     setPhase("ready");
-    setCurrentStep(0);
-    setCurrentExchange(0);
     setTranscript([]);
+    setDiagnosis(null);
     setStreamingText("");
     setAiSpeaking(false);
+    setScanning(false);
     setActiveAnnotations([]);
-    setSessionStatus("active");
   }, []);
 
   return {
     phase,
-    currentStep,
-    currentExchange,
     transcript,
     aiSpeaking,
     streamingText,
+    scanning,
+    diagnosis,
     activeAnnotations,
-    sessionStatus,
-    totalSteps,
+    sessionStatus: phase === "complete" ? "complete" : "active",
+    totalSteps: diagnosis?.steps?.length || 0,
+    currentStep: 0,
+    currentExchange: 0,
     grantPermissions,
     startSession,
     completeSession,
     resetSession,
+    scan,
   };
 }
