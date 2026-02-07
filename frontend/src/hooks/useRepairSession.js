@@ -1,5 +1,10 @@
 import { useState, useCallback, useRef } from "react";
-import { captureFrame, analyzeFrame } from "../api/midas";
+import {
+  captureFrame,
+  chatWithMidas,
+  transcribeAudio,
+  speakText,
+} from "../api/midas";
 
 export default function useRepairSession() {
   const [phase, setPhase] = useState("permissions"); // permissions | ready | active | complete
@@ -12,6 +17,7 @@ export default function useRepairSession() {
 
   const cancelRef = useRef(false);
   const timeoutRef = useRef(null);
+  const audioRef = useRef(null);
 
   const sleep = (ms) =>
     new Promise((resolve) => {
@@ -30,34 +36,50 @@ export default function useRepairSession() {
   };
 
   /**
-   * Build a context string from conversation history so the LLM
-   * knows what was discussed previously.
+   * Build OpenAI-style messages array from transcript history.
    */
-  const buildContext = (messages, newUserText) => {
-    const lines = [];
-    for (const msg of messages) {
-      const prefix = msg.speaker === "user" ? "User" : "MIDAS";
-      lines.push(`${prefix}: ${msg.text}`);
-    }
+  const buildMessages = (history, newUserText) => {
+    const msgs = history.map((msg) => ({
+      role: msg.speaker === "user" ? "user" : "assistant",
+      content: msg.text,
+    }));
     if (newUserText.trim()) {
-      lines.push(`User: ${newUserText.trim()}`);
+      msgs.push({ role: "user", content: newUserText.trim() });
     }
-    return lines.join("\n");
+    return msgs;
+  };
+
+  /** Stop any currently playing TTS audio. */
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
   };
 
   /**
-   * Capture a frame + send to GPT-4o with full conversation context.
+   * Capture a frame + send to GPT-4o with full conversation history.
    * videoEl: the <video> DOM element
-   * spokenText: what the user just said (from Web Speech API)
+   * audioBlob: recorded audio Blob from MediaRecorder (sent to Whisper)
    */
   const scan = useCallback(
-    async (videoEl, spokenText = "") => {
+    async (videoEl, audioBlob = null) => {
       if (scanning || !videoEl) return;
 
       setScanning(true);
       setAiSpeaking(true);
-      setStreamingText("Scanning device...");
       cancelRef.current = false;
+
+      // Step 1: Transcribe audio via Whisper
+      let spokenText = "";
+      if (audioBlob && audioBlob.size > 0) {
+        try {
+          setStreamingText("Transcribing...");
+          spokenText = await transcribeAudio(audioBlob);
+        } catch (err) {
+          console.warn("Transcription failed:", err);
+        }
+      }
 
       // Add user's spoken text to transcript
       if (spokenText.trim()) {
@@ -68,43 +90,21 @@ export default function useRepairSession() {
       }
 
       try {
+        setStreamingText("Scanning device...");
         const blob = await captureFrame(videoEl);
 
-        // Build full conversation context for the LLM
-        const context = buildContext(transcript, spokenText);
+        // Build proper message history for the LLM
+        const messages = buildMessages(transcript, spokenText);
 
-        const result = await analyzeFrame(blob, context);
-        setDiagnosis(result);
+        // Send to /chat endpoint with image + full conversation history
+        const aiText = await chatWithMidas(messages, blob);
 
-        // Build readable AI response
-        const lines = [];
-        lines.push(`I can see a ${result.device}.`);
-
-        if (result.damage_detected) {
-          lines.push(result.damage_description);
-          lines.push("");
-          lines.push("Here's how to fix it:");
-          result.steps.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
-
-          if (result.warning && result.warning !== "None") {
-            lines.push("");
-            lines.push(`Warning: ${result.warning}`);
-          }
-          if (result.tools?.length > 0) {
-            lines.push("");
-            lines.push(`Tools needed: ${result.tools.join(", ")}`);
-          }
-        } else {
-          lines.push(
-            "I don't see any visible damage. Try describing the issue or adjusting the camera angle."
-          );
-        }
-
-        const aiText = lines.join("\n");
-
-        // Stream the response word by word
+        // Stream the response word by word + request TTS in parallel
         setStreamingText("");
-        await streamWords(aiText);
+        const [, audioBytes] = await Promise.all([
+          streamWords(aiText),
+          speakText(aiText).catch(() => null),
+        ]);
 
         if (!cancelRef.current) {
           setTranscript((prev) => [
@@ -112,7 +112,26 @@ export default function useRepairSession() {
             { speaker: "ai", text: aiText, timestamp: new Date() },
           ]);
           setStreamingText("");
-          setAiSpeaking(false);
+
+          // Play TTS audio
+          if (audioBytes) {
+            try {
+              const mp3Blob = new Blob([audioBytes], { type: "audio/mpeg" });
+              const audioUrl = URL.createObjectURL(mp3Blob);
+              const audio = new Audio(audioUrl);
+              audioRef.current = audio;
+              audio.onended = () => {
+                setAiSpeaking(false);
+                URL.revokeObjectURL(audioUrl);
+                audioRef.current = null;
+              };
+              audio.play();
+            } catch {
+              setAiSpeaking(false);
+            }
+          } else {
+            setAiSpeaking(false);
+          }
         }
       } catch (err) {
         setStreamingText("");
@@ -141,6 +160,7 @@ export default function useRepairSession() {
     setAiSpeaking(false);
     setScanning(false);
     setActiveAnnotations([]);
+    stopAudio();
     cancelRef.current = false;
     setPhase("active");
   }, []);
@@ -148,6 +168,7 @@ export default function useRepairSession() {
   const completeSession = useCallback(() => {
     cancelRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    stopAudio();
     setAiSpeaking(false);
     setStreamingText("");
     setScanning(false);
@@ -158,6 +179,7 @@ export default function useRepairSession() {
   const resetSession = useCallback(() => {
     cancelRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    stopAudio();
     setPhase("ready");
     setTranscript([]);
     setDiagnosis(null);

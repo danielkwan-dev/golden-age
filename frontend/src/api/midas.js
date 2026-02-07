@@ -35,3 +35,51 @@ export async function analyzeFrame(imageBlob, transcript = "") {
   if (!res.ok) throw new Error("Analysis failed");
   return res.json();
 }
+
+/**
+ * Multi-turn conversation with MIDAS.
+ *
+ * @param {Array<{role: string, content: string}>} messages - Conversation history
+ * @param {Blob|null} imageBlob - Optional camera frame to include
+ * @returns {Promise<string>} The AI's reply text
+ */
+export async function chatWithMidas(messages, imageBlob = null) {
+  const form = new FormData();
+  form.append("messages", JSON.stringify(messages));
+  if (imageBlob) {
+    form.append("image", imageBlob, "frame.jpg");
+  }
+  const res = await fetch(`${API_BASE}/chat`, { method: "POST", body: form });
+  if (!res.ok) throw new Error("Chat failed");
+  const data = await res.json();
+  return data.reply;
+}
+
+/**
+ * Send an audio blob to the backend for Whisper transcription.
+ * @param {Blob} audioBlob - WebM/Opus audio from MediaRecorder
+ * @returns {Promise<string>} The transcribed text
+ */
+export async function transcribeAudio(audioBlob) {
+  const form = new FormData();
+  form.append("audio", audioBlob, "recording.webm");
+  const res = await fetch(`${API_BASE}/transcribe`, { method: "POST", body: form });
+  if (!res.ok) throw new Error("Transcription failed");
+  const data = await res.json();
+  return data.text || "";
+}
+
+/**
+ * Request TTS audio from the backend.
+ * @param {string} text - Text to speak
+ * @returns {Promise<ArrayBuffer>} MP3 audio bytes
+ */
+export async function speakText(text) {
+  const res = await fetch(`${API_BASE}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, voice: "nova" }),
+  });
+  if (!res.ok) throw new Error("TTS failed");
+  return res.arrayBuffer();
+}

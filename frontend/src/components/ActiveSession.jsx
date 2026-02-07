@@ -16,11 +16,11 @@ export default function ActiveSession({
     mic.startListening();
   };
 
-  const handlePressEnd = (e) => {
+  const handlePressEnd = async (e) => {
     e.preventDefault();
     if (!mic.listening) return;
-    const spokenText = mic.stopListening();
-    session.scan(videoRef.current, spokenText);
+    const audioBlob = await mic.stopListening();
+    session.scan(videoRef.current, audioBlob);
   };
 
   return (

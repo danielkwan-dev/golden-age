@@ -6,10 +6,10 @@ export default function useMicrophone() {
   const [listening, setListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const streamRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const fullTranscriptRef = useRef("");
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
-  /** Request mic permission and get audio stream (no speech recognition yet). */
+  /** Request mic permission and get audio stream. */
   const startMic = useCallback(async () => {
     setStatus("requesting");
     try {
@@ -30,80 +30,56 @@ export default function useMicrophone() {
     }
   }, []);
 
-  /** Start speech recognition (call on button press). */
+  /** Start recording audio via MediaRecorder (call on button press). */
   const startListening = useCallback(() => {
     if (!streamRef.current) return;
 
-    // Reset transcript for this new utterance
-    fullTranscriptRef.current = "";
-    setLiveTranscript("");
+    chunksRef.current = [];
+    setLiveTranscript("Listening...");
     setListening(true);
 
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    // Pick a supported MIME type
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      let interim = "";
-      let final = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += t + " ";
-        } else {
-          interim = t;
-        }
-      }
-      if (final) {
-        fullTranscriptRef.current += final;
-      }
-      setLiveTranscript(fullTranscriptRef.current + interim);
+    const recorder = new MediaRecorder(streamRef.current, { mimeType });
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
     };
+    recorder.start();
+    recorderRef.current = recorder;
+  }, []);
 
-    recognition.onerror = (e) => {
-      if (e.error !== "no-speech" && e.error !== "aborted") {
-        console.warn("Speech recognition error:", e.error);
-      }
-    };
-
-    // Auto-restart if browser stops mid-utterance (silence timeout)
-    recognition.onend = () => {
-      if (listening && streamRef.current) {
-        try {
-          recognition.start();
-        } catch {
-          // already stopped
-        }
-      }
-    };
-
-    recognition.start();
-    recognitionRef.current = recognition;
-  }, [listening]);
-
-  /** Stop speech recognition (call on button release). Returns the transcript. */
+  /** Stop recording and return the audio Blob. Returns Promise<Blob|null>. */
   const stopListening = useCallback(() => {
     setListening(false);
-    if (recognitionRef.current) {
-      recognitionRef.current.onend = null;
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-    const result = fullTranscriptRef.current.trim() || liveTranscript.trim();
-    return result;
-  }, [liveTranscript]);
+    setLiveTranscript("");
+
+    return new Promise((resolve) => {
+      const recorder = recorderRef.current;
+      if (!recorder || recorder.state === "inactive") {
+        resolve(null);
+        return;
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        chunksRef.current = [];
+        resolve(blob);
+      };
+      recorder.stop();
+      recorderRef.current = null;
+    });
+  }, []);
 
   const stopMic = useCallback(() => {
-    // Stop speech recognition if running
-    if (recognitionRef.current) {
-      recognitionRef.current.onend = null;
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+      recorderRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -113,7 +89,7 @@ export default function useMicrophone() {
     setIsMuted(false);
     setListening(false);
     setLiveTranscript("");
-    fullTranscriptRef.current = "";
+    chunksRef.current = [];
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -130,15 +106,13 @@ export default function useMicrophone() {
 
   const clearTranscript = useCallback(() => {
     setLiveTranscript("");
-    fullTranscriptRef.current = "";
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        recorderRef.current.stop();
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
