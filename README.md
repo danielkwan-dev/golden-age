@@ -2,7 +2,7 @@
 
 Theme: The Golden Age
 
-Authors: Siddharth Tiwari, Daniel Kwan, Ryan Li, and Diego Gonzalez.
+Authors: Daniel Kwan, Diego Gonzalez, Ryan Li, Siddharth Tiwari
 
 **Touch Broken Tech. Restore to Gold.**
 
