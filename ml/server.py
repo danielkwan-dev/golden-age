@@ -21,9 +21,6 @@ import io
 import base64
 import argparse
 from typing import List, Optional
-from pathlib import Path
-from dotenv import load_dotenv
-
 from dotenv import load_dotenv
 
 # Load .env from project root (one level up from ml/)
@@ -71,10 +68,6 @@ class TTSRequest(BaseModel):
 
 
 # --- App ---
-
-# Load environment variables from project root .env
-PROJECT_ROOT = Path(__file__).parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
 
 app = FastAPI(
     title="MIDAS Model Server",
