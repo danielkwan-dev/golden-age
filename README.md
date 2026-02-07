@@ -28,7 +28,7 @@ Users interact via **hold-to-talk** (Whisper STT), **text input**, or the **scan
 |-------|-----------|
 | **Frontend** | React 19, Vite 7, Tailwind CSS v4, Framer Motion |
 | **Backend** | FastAPI, Uvicorn |
-| **Object Detection** | YOLOv8n (Ultralytics) -- 80 COCO classes, ~6MB model |
+| **Object Detection** | YOLOv8n (Ultralytics), trained on 80 COCO classes inc. cellphone, mouse, keyboard, person, etc. ~6MB model |
 | **Image Processing** | OpenCV (CLAHE contrast enhancement, sharpening, resize) |
 | **Vision AI** | GPT-4o Vision (damage analysis + repair instructions) |
 | **Speech-to-Text** | OpenAI Whisper API |
