@@ -21,16 +21,19 @@ import io
 import base64
 import argparse
 from typing import List, Optional
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env from project root (one level up from ml/)
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
+PROJECT_ROOT = Path(__file__).parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 import cv2
 import numpy as np
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import Response
+from fastapi import FastAPI, File, UploadFile, Form, Request
+from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -379,6 +382,23 @@ async def tts(req: TTSRequest):
     except Exception as e:
         print(f"TTS error: {e}")
         return Response(content=b"", media_type="audio/mpeg")
+
+
+# --- Static Files (Frontend) ---
+
+# Verify frontend/dist exists before mounting
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+    
+    # Catch-all for SPA routing (return index.html for non-API routes)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api") or full_path.startswith("openapi.json") or full_path.startswith("docs"):
+            return Response(status_code=404)
+        return FileResponse(FRONTEND_DIST / "index.html")
+else:
+    print(f"WARNING: Frontend dist not found at {FRONTEND_DIST}. Run 'npm run build' in frontend/")
 
 
 if __name__ == "__main__":

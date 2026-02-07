@@ -3,19 +3,21 @@ echo ==========================================
 echo       STARTING MIDAS SYSTEM
 echo ==========================================
 
-:: Start Backend
-echo [1/2] Launching Backend Server...
-start "MIDAS Backend" cmd /k "venv\Scripts\activate && python ml/server.py"
+:: Start Backend (which also serves Frontend)
+echo [1/2] Launching Unified Server...
+start "MIDAS Unified Server" cmd /k "venv\Scripts\activate && python ml/server.py"
 
-:: Start Frontend
-echo [2/2] Launching Frontend Server...
-cd frontend
-start "MIDAS Frontend" cmd /k "npm run dev"
+:: Start Ngrok Tunnel
+echo [2/2] Launching Ngrok Tunnel...
+echo.
+echo Check the NEW window for your public URL (starts with https://...)
+echo This ONE URL will now work for both the API and the Website.
+echo.
+start "MIDAS Tunnel" cmd /k "ngrok http 8000"
 
 echo ==========================================
 echo       SYSTEM ONLINE
 echo ==========================================
-echo Backend: http://0.0.0.0:8000
-echo Frontend: https://localhost:5173 (Network: https://10.218.15.240:5173)
+echo Unified Server: http://localhost:8000
 echo.
 pause
