@@ -21,6 +21,11 @@ import io
 import argparse
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
+# Load .env from project root (one level up from ml/)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
+
 import cv2
 import numpy as np
 from PIL import Image
@@ -55,6 +60,11 @@ class AnalysisResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     vision_ready: bool
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "nova"
 
 
 # --- App ---
@@ -232,6 +242,95 @@ async def analyze(
         frame_height=h,
         preprocessed=was_preprocessed,
     )
+
+
+@app.post("/chat")
+async def chat(
+    image: Optional[UploadFile] = File(default=None),
+    messages: str = Form(default="[]"),
+):
+    """
+    Multi-turn conversational endpoint.
+
+    Accepts a JSON-encoded messages array (role + content) and an optional
+    camera frame. Returns the AI's plain-text reply with full conversation
+    context, enabling back-and-forth dialogue about a device repair.
+    """
+    if vision_advisor is None:
+        return {"reply": "Server not configured — set OPENAI_API_KEY and restart."}
+
+    import json as _json
+    try:
+        msg_list = _json.loads(messages)
+    except _json.JSONDecodeError:
+        msg_list = []
+
+    # Ensure there's at least one user message for the image to attach to
+    if not msg_list or msg_list[-1].get("role") != "user":
+        msg_list.append({"role": "user", "content": "Analyze this device for any damage or issues."})
+
+    # Preprocess image if provided
+    processed_bytes = None
+    if image is not None:
+        raw_bytes = await image.read()
+        processed_bytes, _, _, _ = preprocess_frame(raw_bytes)
+
+    reply = vision_advisor.chat(
+        messages=msg_list,
+        image_bytes=processed_bytes,
+        mime_type="image/jpeg" if processed_bytes else "image/jpeg",
+    )
+
+    return {"reply": reply}
+
+
+@app.post("/transcribe")
+async def transcribe(audio: UploadFile = File(...)):
+    """
+    Speech-to-text using OpenAI Whisper API.
+    Accepts audio blob (webm/opus from MediaRecorder).
+    """
+    if vision_advisor is None:
+        return {"text": ""}
+
+    audio_bytes = await audio.read()
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = audio.filename or "recording.webm"
+
+    try:
+        result = vision_advisor.client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="en",
+        )
+        return {"text": result.text}
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        return {"text": ""}
+
+
+@app.post("/tts")
+async def tts(req: TTSRequest):
+    """
+    Text-to-speech using OpenAI TTS API.
+    Returns audio/mpeg (MP3) bytes.
+    """
+    if vision_advisor is None:
+        return Response(content=b"", media_type="audio/mpeg")
+
+    try:
+        response = vision_advisor.client.audio.speech.create(
+            model="tts-1",
+            voice=req.voice,
+            input=req.text,
+        )
+        return Response(
+            content=response.content,
+            media_type="audio/mpeg",
+        )
+    except Exception as e:
+        print(f"TTS error: {e}")
+        return Response(content=b"", media_type="audio/mpeg")
 
 
 if __name__ == "__main__":
