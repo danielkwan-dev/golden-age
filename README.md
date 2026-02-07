@@ -1,2 +1,1 @@
-# golden-age
-QHacks 2026 
+# QHacks 2026
