@@ -11,7 +11,7 @@
   --color-white: #FFFFFF;
   --color-success: #4ADE80;
   --color-danger: #F87171;
-  --font-sans: "Inter", sans-serif;
+  --font-sans: "JetBrains Mono", monospace;
 }
 
 html, body, #root {
@@ -22,7 +22,7 @@ html, body, #root {
   overflow: hidden;
   background-color: #0A0A0A;
   color: #FFFFFF;
-  font-family: "Inter", sans-serif;
+  font-family: "JetBrains Mono", monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
