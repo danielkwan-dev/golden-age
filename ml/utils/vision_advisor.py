@@ -60,7 +60,7 @@ Rules:
 - If the user asks a follow-up, provide updated or additional steps as a new numbered list.
 - If no device is visible, say so and ask them to point the camera.
 - If no damage is visible, say so and ask the user to describe the issue or show another angle.
-- Do NOT use JSON or markdown. Respond in plain English with numbered steps."""
+- Do NOT use JSON, markdown, or any formatting like **bold** or *italic*. Respond in plain English with numbered steps."""
 
 
 class VisionAdvisor:

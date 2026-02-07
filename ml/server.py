@@ -121,6 +121,9 @@ def preprocess_frame(image_bytes: bytes) -> tuple[bytes, int, int, bool, any]:
     if frame is None:
         return image_bytes, 0, 0, False, None
 
+    # Mirror horizontally (front-facing camera inversion)
+    frame = cv2.flip(frame, 1)
+
     h, w = frame.shape[:2]
 
     # Resize if too large (saves GPT-4o tokens, 1280px max dimension)

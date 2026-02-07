@@ -47,7 +47,9 @@ export default function useRepairSession() {
       // Match: "1. ...", "1) ...", "Step 1: ...", "Step 1. ...", "Step 1 - ..."
       const match = line.match(/^\s*(?:step\s+)?\d+\s*[.):\-]\s*(.+)/i);
       if (match) {
-        steps.push(match[1].trim());
+        // Strip markdown bold/italic markers (** and *)
+        const clean = match[1].trim().replace(/\*{1,2}/g, "");
+        steps.push(clean);
       }
     }
     if (steps.length > 0) {
