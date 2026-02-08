@@ -6,7 +6,7 @@ Authors: Daniel Kwan, Diego Gonzalez, Ryan Li, Siddharth Tiwari
 
 **Touch Broken Tech. Restore to Gold.**
 
-MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. **Optimized for mobile**, simply point your camera at a device, and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas uses AI to bring neglected devices to their former "Golden Age".
+MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broken technology. Available as a web application (**optimized for mobile**), simply point your camera at a device and MIDAS identifies components, detects faults, and provides step-by-step, voice-guided, interactive repair instructions. Midas uses AI to bring neglected devices to their former "Golden Age".
 
 ---
 
@@ -160,8 +160,6 @@ Runs continuously during active sessions (as fast as round-trips allow, no fixed
 
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 18+
 - OpenAI API key
 
 ### Setup
@@ -195,6 +193,3 @@ Build the frontend and serve everything from FastAPI:
 cd frontend && npm run build && cd ..
 python ml/server.py
 ```
-
-The server auto-detects `frontend/dist/` and serves the SPA + API from port 8000.
-
