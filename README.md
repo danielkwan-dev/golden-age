@@ -185,6 +185,26 @@ npm run dev
 
 Frontend runs at `http://localhost:5173`, backend at `http://localhost:8000`.
 
+### Accessing on Mobile
+
+To test on your phone (same Wi-Fi network), expose both servers on your local IP:
+
+```bash
+# Backend (already binds 0.0.0.0 by default)
+python ml/server.py
+
+# Frontend — expose on network
+cd frontend
+echo "VITE_API_URL=http://<your-local-ip>:8000" > .env
+npm run dev -- --host
+```
+
+Find your local IP with `ipconfig getifaddr en0` (macOS) or `hostname -I` (Linux). Then open `http://<your-local-ip>:5173` on your phone's browser.
+
+> **Note:** Camera access requires a secure context. `localhost` works automatically, but on a LAN IP you may need HTTPS. Use the single server mode below with a reverse proxy, or use a tunneling tool like `ngrok`.
+
+> **Tip:** On mobile, the app includes a **flashlight toggle** button in the control bar for illuminating devices in low-light conditions (requires a device with torch support).
+
 ### Single Server Mode
 
 Build the frontend and serve everything from FastAPI:
