@@ -96,14 +96,14 @@ def init_server():
     """Initialize the vision advisor and YOLO model."""
     global vision_advisor, yolo_model
 
-    # Load YOLOv8 nano model (auto-downloads ~6MB on first run)
-    yolo_model = YOLO("yolov8n.pt")
-    print("YOLOv8n model loaded")
+    # Load YOLOv11 nano model (auto-downloads on first run)
+    yolo_model = YOLO("yolo11n.pt")
+    print("YOLOv11n model loaded")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if api_key:
         vision_advisor = VisionAdvisor()
-        print("MIDAS server ready (GPT-4o Vision + YOLOv8)")
+        print("MIDAS server ready (GPT-4o Vision + YOLOv11)")
     else:
         print("ERROR: OPENAI_API_KEY not set — server cannot analyze images")
 
