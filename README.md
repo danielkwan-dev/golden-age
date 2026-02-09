@@ -18,7 +18,7 @@ MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broke
 4. **Repair** -- Step-by-step voice-guided instructions, one step at a time
 5. **Verify** -- Mark steps complete and get the next instruction
 
-Users interact via **hold-to-talk** (Whisper STT), **text input**, or the **scan button** (photo-only). All AI responses are read aloud via OpenAI TTS.
+Users interact via **hold-to-talk** (Whisper STT) or **text input**. Midas' responses are read aloud via OpenAI TTS.
 
 ---
 
@@ -187,7 +187,7 @@ Frontend runs at `http://localhost:5173`, backend at `http://localhost:8000`.
 
 ### Accessing on Mobile
 
-To test on your phone (same Wi-Fi network), expose both servers on your local IP:
+To test on your phone (same Wi-Fi network required), expose both servers on your local IP:
 
 ```bash
 # Backend (already binds 0.0.0.0 by default)
