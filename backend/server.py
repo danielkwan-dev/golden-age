@@ -157,7 +157,7 @@ def preprocess_frame(image_bytes: bytes, should_flip: bool = False) -> tuple[byt
 
 def detect_objects(frame, frame_w: int, frame_h: int, max_detections: int = 3) -> list:
     """
-    Detect objects using YOLOv8 and return labeled bounding boxes
+    Detect objects using YOLOv11 and return labeled bounding boxes
     as CSS percentage positions for AR overlay.
     """
     if frame is None or frame_w == 0 or frame_h == 0 or yolo_model is None:

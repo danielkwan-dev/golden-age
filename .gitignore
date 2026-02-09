@@ -23,3 +23,6 @@ out/
 
 *.tmp
 *.temp
+
+# YOLO model weights (auto-downloaded at runtime)
+*.pt

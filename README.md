@@ -13,7 +13,7 @@ MIDAS is an AR-powered repair assistant that helps anyone diagnose and fix broke
 ## How It Works
 
 1. **Scan** -- Point your camera at a broken device
-2. **Detect** -- YOLOv8 identifies and labels objects in real-time with AR bounding boxes
+2. **Detect** -- YOLOv11 identifies and labels objects in real-time with AR bounding boxes
 3. **Diagnose** -- GPT-4o Vision analyzes the image and identifies damage
 4. **Repair** -- Step-by-step voice-guided instructions, one step at a time
 5. **Verify** -- Mark steps complete and get the next instruction
@@ -28,7 +28,7 @@ Users interact via **hold-to-talk** (Whisper STT) or **text input**. Midas' resp
 |-------|-----------|
 | **Frontend** | React 19, Vite 7, Tailwind CSS v4, Framer Motion |
 | **Backend** | FastAPI, Uvicorn |
-| **Object Detection** | YOLOv8n (Ultralytics), trained on 80 COCO classes inc. cellphone, mouse, keyboard, person, etc. ~6MB model |
+| **Object Detection** | YOLOv11n (Ultralytics), pretrained on 80 COCO classes inc. cellphone, mouse, keyboard, person, etc. |
 | **Image Processing** | OpenCV (CLAHE contrast enhancement, sharpening, resize) |
 | **Vision AI** | GPT-4o Vision (damage analysis + repair instructions) |
 | **Speech-to-Text** | OpenAI Whisper API |
@@ -88,7 +88,7 @@ midas/
 
 | Method | Endpoint | Description | Cost |
 |--------|----------|-------------|------|
-| `POST` | `/preview` | OpenCV preprocessing + YOLOv8 object detection. Returns base64 enhanced image + labeled bounding boxes. Called continuously by frontend. | Free |
+| `POST` | `/preview` | OpenCV preprocessing + YOLOv11 object detection. Returns base64 enhanced image + labeled bounding boxes. Called continuously by frontend. | Free |
 | `POST` | `/chat` | Multi-turn conversation with GPT-4o Vision. Accepts message history + camera frame. Returns concise repair guidance. | $ |
 | `POST` | `/analyze` | Single-shot structured analysis. Returns JSON with device, damage, severity, tools, steps. | $ |
 | `POST` | `/transcribe` | Speech-to-text via OpenAI Whisper. Accepts audio blob (WebM/Opus). | $ |
@@ -98,7 +98,7 @@ midas/
 ### Processing Pipeline
 
 ```
-Camera Frame --> OpenCV Preprocessing --> YOLOv8 Detection --> Frontend AR Overlay
+Camera Frame --> OpenCV Preprocessing --> YOLOv11 Detection --> Frontend AR Overlay
                      |
                      |-- Resize (max 1280px)
                      |-- CLAHE contrast enhancement
@@ -151,7 +151,7 @@ Runs continuously during active sessions (as fast as round-trips allow, no fixed
 
 1. Capture JPEG frame from `<video>` element
 2. `POST` to `/preview` endpoint
-3. Receive YOLOv8 detections (max 3, labeled with class name + confidence %)
+3. Receive YOLOv11 detections (max 3, labeled with class name + confidence %)
 4. Render as gold AR bounding boxes over the live camera feed
 
 ---
